@@ -1,0 +1,43 @@
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage/
+*.log
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local app runtime data
+backend/uploaded_images/*
+!backend/uploaded_images/.gitkeep
+backend/fashion.db
+backend/*.db
+backend/*.sqlite3
+backend/.env
+backend/.env.*
+
+# Frontend build output
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.cache/

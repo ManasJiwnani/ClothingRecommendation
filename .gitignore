@@ -27,6 +27,7 @@ env/
 ENV/
 
 # Local app runtime data
+# Backend runtime data
 backend/uploaded_images/*
 !backend/uploaded_images/.gitkeep
 backend/fashion.db
@@ -35,6 +36,10 @@ backend/*.sqlite3
 backend/.env
 backend/.env.*
 
+fashion-ai-backend/.env
+fashion-ai-backend/.env.*
+fashion-ai-backend/*.db
+fashion-ai-backend/*.sqlite3
 # Frontend build output
 frontend/node_modules/
 frontend/dist/

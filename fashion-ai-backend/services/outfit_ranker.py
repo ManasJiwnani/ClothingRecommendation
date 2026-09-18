@@ -1,15 +1,10 @@
 from services.outfit_scorer import score_outfit
 
 
-def rank_outfits(outfits, intent):
+def rank_outfits(outfits, intent, weather=None):
 
-    # Convert Pydantic Intent → dictionary
     if hasattr(intent, "model_dump"):
         intent = intent.model_dump()
-
-    print("\n===== RANKING =====")
-    print("Intent type:", type(intent))
-    print("Intent:", intent)
 
     scored = []
 
@@ -17,7 +12,8 @@ def rank_outfits(outfits, intent):
 
         score = score_outfit(
             outfit,
-            intent
+            intent,
+            weather
         )
 
         scored.append({

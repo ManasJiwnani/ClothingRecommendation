@@ -1,47 +1,85 @@
+import os
+
+import certifi
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional
 
-from models.schemas import ClothingCreate,Intent
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
 
-# Existing database functions
+
+# ==================================================
+# SCHEMAS
+# ==================================================
+
+from models.schemas import (
+    ClothingCreate,
+    Intent,
+    SearchRequest,
+    RetrieveRequest,
+    WeatherRecommendationRequest,
+    RecommendationRequest,
+)
+
+
+# ==================================================
+# DATABASE
+# ==================================================
+
 from services.supabase_service import (
     add_clothing,
     get_user_clothes,
     get_clothing_by_id,
     search_similar_clothes,
-    prepare_clothing_data
+    prepare_clothing_data,
 )
 
-# Recommendation modules
+
+# ==================================================
+# WEATHER
+# ==================================================
+
+from services.weather import get_current_weather
+from services.weather_context import get_weather_context
+
+
+# ==================================================
+# RECOMMENDATION PIPELINE
+# ==================================================
+
 from services.retrieval import retrieve_clothes
-from services.recommendation_service import filter_clothes
 from services.outfit_builder import build_outfits
-from services.color_matcher import (
-    normalize_color,
-    is_color_compatible,
-    score_color_pair,
-    score_outfit_colors
-)
-from services.outfit_scorer import (
-    get_outfit_items,
-    score_item_relevance,
-    score_occasion,
-    score_formality_compatibility,
-    score_style_compatibility,
-    score_color_preference,
-    score_outfit
-)
 from services.outfit_ranker import rank_outfits
 
+from graph.workflow import recommendation_graph
+
+
+# ==================================================
+# SSL
+# ==================================================
+
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+
+except Exception:
+    pass
+
+
+# ==================================================
+# FASTAPI APP
+# ==================================================
 
 app = FastAPI(
     title="AI Fashion Backend",
     description="AI-powered wardrobe recommendation API",
-    version="1.0.0"
+    version="1.0.0",
 )
 
+
+# ==================================================
 # HOME
+# ==================================================
 
 @app.get("/")
 def home():
@@ -49,77 +87,100 @@ def home():
         "message": "Fashion AI Backend is running"
     }
 
-# INTENT MODEL
-# class Intent(BaseModel):
-#     occasion: Optional[str] = None
-#     style: Optional[str] = None
-#     formality: Optional[int] = None
-#     mood: Optional[str] = None
-#     weather_sensitive: bool = False
 
-#     color_preference: list[str] = Field(
-#         default_factory=list
-#     )
+# ==================================================
+# GET USER CLOTHES
+# ==================================================
 
-#     excluded_items: list[str] = Field(
-#         default_factory=list
-#     )
-
-
-
-# CLOTHING ENDPOINTS
 @app.get("/clothes/{user_id}")
 def get_clothes(user_id: str):
 
     try:
-        return get_user_clothes(user_id)
+
+        clothes = get_user_clothes(user_id)
+
+        return clothes
 
     except Exception as e:
+
         raise HTTPException(
             status_code=500,
             detail=str(e)
         )
 
 
-# class ClothingCreate(BaseModel):
-#     image_url: str
-#     attributes: ClothingCreate
-#     embedding: list[float]
-
-#     @field_validator("embedding")
-#     @classmethod
-#     def validate_embedding(cls, value):
-
-#         if len(value) != 768:
-#             raise ValueError(
-#                 f"Embedding must contain 768 values, got {len(value)}"
-#             )
-
-#         return value
-
+# ==================================================
+# ADD CLOTHING
+# ==================================================
 
 @app.post("/clothes/{user_id}")
-def create_clothing(user_id: str, clothing: ClothingCreate):
+def create_clothing(
+    user_id: str,
+    clothing: ClothingCreate
+):
+
     try:
-        attributes = clothing.attributes.model_dump()
+
+        # --------------------------------------------------
+        # IMPORTANT:
+        # ClothingCreate is FLAT.
+        #
+        # Therefore we cannot use:
+        #
+        # clothing.attributes
+        #
+        # Instead we construct the attributes dictionary
+        # from the individual fields.
+        # --------------------------------------------------
+
+        attributes = {
+            "category": clothing.category,
+            "subcategory": clothing.subcategory,
+            "color": clothing.color,
+            "secondary_color": clothing.secondary_color,
+            "pattern": clothing.pattern,
+            "material": clothing.material,
+            "sleeve_type": clothing.sleeve_type,
+            "fit": clothing.fit,
+            "style": clothing.style,
+            "formality": clothing.formality,
+            "season": clothing.season,
+            "occasions": clothing.occasions,
+        }
+
+        # --------------------------------------------------
+        # Prepare database row
+        # --------------------------------------------------
 
         data = prepare_clothing_data(
             user_id=user_id,
             image_url=clothing.image_url,
             attributes=attributes,
-            embedding=clothing.embedding
+            embedding=clothing.embedding,
         )
+
+        # --------------------------------------------------
+        # Insert into Supabase
+        # --------------------------------------------------
 
         result = add_clothing(data)
 
         return {
             "message": "Clothing added successfully",
-            "data": result
+            "data": result,
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ==================================================
+# GET SINGLE CLOTHING ITEM
+# ==================================================
 
 @app.get("/clothing/{clothing_id}")
 def get_clothing(clothing_id: str):
@@ -128,33 +189,30 @@ def get_clothing(clothing_id: str):
 
         result = get_clothing_by_id(clothing_id)
 
-        return result
+        if not result:
 
-    except Exception:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Clothing item not found"
-        )
-
-# SEMANTIC SEARCH
-class SearchRequest(BaseModel):
-
-    user_id: str
-    embedding: list[float]
-    limit: int = 5
-
-    @field_validator("embedding")
-    @classmethod
-    def validate_embedding(cls, value):
-
-        if len(value) != 768:
-            raise ValueError(
-                f"Embedding must contain 768 values, got {len(value)}"
+            raise HTTPException(
+                status_code=404,
+                detail="Clothing item not found"
             )
 
-        return value
+        return result
 
+    except HTTPException:
+
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ==================================================
+# SEMANTIC SEARCH
+# ==================================================
 
 @app.post("/search-clothes")
 def search_clothes(request: SearchRequest):
@@ -163,8 +221,8 @@ def search_clothes(request: SearchRequest):
 
         results = search_similar_clothes(
             user_id=request.user_id,
-            query_embedding=request.embedding,
-            limit=request.limit
+            query_embedding=request.query_embedding,
+            limit=request.limit,
         )
 
         return {
@@ -179,50 +237,29 @@ def search_clothes(request: SearchRequest):
         )
 
 
+# ==================================================
 # RETRIEVAL + FILTERING
-class RetrieveRequest(BaseModel):
-    user_id: str
-    query_embedding: list[float]
-    dimensions: int
-    intent: Intent
-    limit: int = 20
-
-    @field_validator("query_embedding")
-    @classmethod
-    def validate_embedding(cls, value):
-        if len(value) != 768:
-            raise ValueError(
-                f"Embedding must contain 768 values, got {len(value)}"
-            )
-        return value
-
-    @field_validator("dimensions")
-    @classmethod
-    def validate_dimensions(cls, value):
-        if value != 768:
-            raise ValueError(
-                f"Dimensions must be 768, got {value}"
-            )
-        return value
-
+# ==================================================
 
 @app.post("/retrieve-clothes")
 def retrieve(request: RetrieveRequest):
 
     try:
 
+        # Convert Pydantic Intent → dictionary
+
         intent = request.intent.model_dump()
 
         clothes = retrieve_clothes(
             user_id=request.user_id,
             query_embedding=request.query_embedding,
             intent=intent,
-            limit=request.limit
+            limit=request.limit,
         )
 
         return {
             "count": len(clothes),
-            "clothes": clothes
+            "clothes": clothes,
         }
 
     except Exception as e:
@@ -232,64 +269,39 @@ def retrieve(request: RetrieveRequest):
             detail=str(e)
         )
 
-# COMPLETE RECOMMENDATION PIPELINE
-class RecommendationRequest(BaseModel):
 
-    user_id: str
-    query_embedding: list[float]
-    intent: Intent
+# ==================================================
+# WEATHER
+# ==================================================
 
-    retrieval_limit: int = 20
-    top_k: int = 5
-
-    @field_validator("query_embedding")
-    @classmethod
-    def validate_embedding(cls, value):
-
-        if len(value) != 768:
-            raise ValueError(
-                f"Embedding must contain 768 values, got {len(value)}"
-            )
-
-        return value
-
-
-@app.post("/recommend")
-def recommend(request: RecommendationRequest):
+@app.post("/weather")
+async def get_weather(
+    request: WeatherRecommendationRequest
+):
 
     try:
 
-        # 1. Convert intent
-        intent = request.intent.model_dump()
+        # --------------------------------------------------
+        # Get current weather from Open-Meteo
+        # --------------------------------------------------
 
-        # 2. Retrieve relevant clothes
-        clothes = retrieve_clothes(
-            user_id=request.user_id,
-            query_embedding=request.query_embedding,
-            intent=intent,
-            limit=request.retrieval_limit
+        weather = await get_current_weather(
+            request.latitude,
+            request.longitude,
         )
 
-        # 3. Build possible outfits
-        outfits = build_outfits(
-            clothes
+        # --------------------------------------------------
+        # Convert raw weather → clothing context
+        # --------------------------------------------------
+
+        weather_context = get_weather_context(
+            weather
         )
-        # 4. Rank outfits
-        ranked_outfits = rank_outfits(
-            outfits,
-            intent
-        )
-        # 5. Return top K
-        recommendations = ranked_outfits[
-            :request.top_k
-        ]
 
         return {
             "user_id": request.user_id,
-            "intent": intent,
-            "retrieved_clothes": len(clothes),
-            "generated_outfits": len(outfits),
-            "recommendations": recommendations
+            "weather": weather,
+            "weather_context": weather_context,
         }
 
     except Exception as e:
@@ -300,249 +312,110 @@ def recommend(request: RecommendationRequest):
         )
 
 
-@app.post("/test-ranking")
-def test_ranking(request: RecommendationRequest):
+# ==================================================
+# COMPLETE RECOMMENDATION PIPELINE
+# ==================================================
+
+@app.post("/recommend")
+async def recommend(
+    request: RecommendationRequest
+):
 
     try:
 
-        clothes = retrieve_clothes(
-            user_id=request.user_id,
-            query_embedding=request.query_embedding,
-            intent=request.intent,
-            limit=5
+        # --------------------------------------------------
+        # 1. PREPARE INITIAL STATE
+        # --------------------------------------------------
+
+        intent = request.intent.model_dump()
+
+        print("\n================================")
+        print("RECOMMENDATION REQUEST")
+        print("================================")
+
+        print("User:", request.user_id)
+        print("Intent:", intent)
+
+        initial_state = {
+
+            "user_id": request.user_id,
+
+            "query_embedding": request.query_embedding,
+
+            "intent": intent,
+
+            "latitude": request.latitude,
+
+            "longitude": request.longitude,
+
+            "retrieval_limit": request.retrieval_limit,
+
+            "top_k": request.top_k,
+        }
+
+        # --------------------------------------------------
+        # 2. RUN LANGGRAPH WORKFLOW
+        # --------------------------------------------------
+
+        result = await recommendation_graph.ainvoke(
+            initial_state
         )
 
-        print("Retrieved:", len(clothes))
-
-        outfits = build_outfits(clothes)
-
-        print("Outfits:", len(outfits))
-
-        ranked_outfits = rank_outfits(
-            outfits,
-            request.intent
-        )
+        # --------------------------------------------------
+        # 3. RETURN RESPONSE
+        # --------------------------------------------------
 
         return {
-            "retrieved": len(clothes),
-            "outfits": len(outfits),
-            "ranked": ranked_outfits[:5]
+
+            "user_id": request.user_id,
+
+            "intent": result.get(
+                "intent",
+                {}
+            ),
+
+            "weather": result.get(
+                "weather"
+            ),
+
+            "weather_context": result.get(
+                "weather_context"
+            ),
+
+            "retrieved_clothes": len(
+                result.get(
+                    "clothes",
+                    []
+                )
+            ),
+
+            "generated_outfits": len(
+                result.get(
+                    "outfits",
+                    []
+                )
+            ),
+
+            "recommendations": result.get(
+                "recommendations",
+                []
+            ),
         }
 
     except Exception as e:
 
-        print("\n===== ERROR =====")
+        import traceback
+
+        print("\n================================")
+        print("RECOMMENDATION ERROR")
+        print("================================")
+
         print(type(e).__name__)
         print(str(e))
+
+        traceback.print_exc()
 
         raise HTTPException(
             status_code=500,
             detail=str(e)
         )
-# FILTER CLOTHES
-# class FilterRequest(BaseModel):
-
-#     clothes: list[dict]
-#     intent: Intent
-
-
-# @app.post("/filter-clothes")
-# def filter_clothing(request: FilterRequest):
-
-#     try:
-
-#         filtered = filter_clothes(
-#             request.clothes,
-#             request.intent.model_dump()
-#         )
-
-#         return {
-#             "count": len(filtered),
-#             "clothes": filtered
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-
-# # BUILD OUTFITS
-# class BuildOutfitRequest(BaseModel):
-
-#     clothes: list[dict]
-
-
-# @app.post("/build-outfits")
-# def build_outfits_endpoint(request: BuildOutfitRequest):
-
-#     try:
-
-#         outfits = build_outfits(
-#             request.clothes
-#         )
-
-#         return {
-#             "count": len(outfits),
-#             "outfits": outfits
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-
-# # SCORE SINGLE ITEM
-# class ScoreItemRequest(BaseModel):
-
-#     item: dict
-#     intent: Intent
-
-
-# @app.post("/score-item")
-# def score_single_item(request: ScoreItemRequest):
-
-#     try:
-
-#         score = score_item(
-#             request.item,
-#             request.intent.model_dump()
-#         )
-
-#         return {
-#             "score": score
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-
-# # SCORE OUTFIT
-# class ScoreOutfitRequest(BaseModel):
-
-#     outfit: dict
-#     intent: Intent
-
-
-# @app.post("/score-outfit")
-# def score_single_outfit(request: ScoreOutfitRequest):
-
-#     try:
-
-#         score = score_outfit(
-#             request.outfit,
-#             request.intent.model_dump()
-#         )
-
-#         return {
-#             "score": score
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-
-# # RANK OUTFITS
-# class RankOutfitsRequest(BaseModel):
-
-#     outfits: list[dict]
-#     intent: Intent
-
-
-# @app.post("/rank-outfits")
-# def rank_outfits_endpoint(request: RankOutfitsRequest):
-
-#     try:
-
-#         ranked = rank_outfits(
-#             request.outfits,
-#             request.intent.model_dump()
-#         )
-
-#         return {
-#             "count": len(ranked),
-#             "outfits": ranked
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-# # COLOR COMPATIBILITY
-# class ColorPairRequest(BaseModel):
-
-#     color1: str
-#     color2: str
-
-
-# @app.post("/color-compatible")
-# def color_compatible(request: ColorPairRequest):
-
-#     try:
-
-#         compatible = is_color_compatible(
-#             request.color1,
-#             request.color2
-#         )
-
-#         score = score_color_pair(
-#             request.color1,
-#             request.color2
-#         )
-
-#         return {
-#             "compatible": compatible,
-#             "score": score
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-
-# # SCORE OUTFIT COLORS
-# class ColorOutfitRequest(BaseModel):
-
-#     outfit: dict
-
-
-# @app.post("/score-outfit-colors")
-# def score_colors(request: ColorOutfitRequest):
-
-#     try:
-
-#         score = score_outfit_colors(
-#             request.outfit
-#         )
-
-#         return {
-#             "color_score": score
-#         }
-
-#     except Exception as e:
-
-#         raise HTTPException(
-#             status_code=500,
-#             detail=str(e)
-#         )
-
-

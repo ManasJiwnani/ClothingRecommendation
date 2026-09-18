@@ -2,16 +2,30 @@ from supabase import create_client
 from config import settings
 
 
-supabase = create_client(
-    settings.SUPABASE_URL,
-    settings.SUPABASE_KEY
-)
+_supabase = None
+
+
+def get_supabase_client():
+    global _supabase
+
+    if _supabase is None:
+        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+            raise RuntimeError(
+                "SUPABASE_URL and SUPABASE_KEY must be configured in the environment or a .env file."
+            )
+
+        _supabase = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_KEY
+        )
+
+    return _supabase
 
 
 def add_clothing(clothing_data: dict):
 
     response = (
-        supabase
+        get_supabase_client()
         .table("clothes")
         .insert(clothing_data)
         .execute()
@@ -23,7 +37,7 @@ def add_clothing(clothing_data: dict):
 def get_user_clothes(user_id: str):
 
     response = (
-        supabase
+        get_supabase_client()
         .table("clothes")
         .select("*")
         .eq("user_id", user_id)
@@ -36,7 +50,7 @@ def get_user_clothes(user_id: str):
 def get_clothing_by_id(clothing_id: str):
 
     response = (
-        supabase
+        get_supabase_client()
         .table("clothes")
         .select("*")
         .eq("id", clothing_id)
@@ -53,7 +67,7 @@ def search_similar_clothes(
     limit: int = 5
 ):
 
-    response = supabase.rpc(
+    response = get_supabase_client().rpc(
         "match_clothes",
         {
             "query_embedding": query_embedding,
@@ -70,7 +84,7 @@ def search_similar_clothes_by_category(
     category: str,
     limit: int = 5
 ):
-    response = supabase.rpc(
+    response = get_supabase_client().rpc(
         "match_clothes_by_category",
         {
             "query_embedding": query_embedding,

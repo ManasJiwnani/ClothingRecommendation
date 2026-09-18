@@ -1,19 +1,27 @@
-from services.supabase_service import (
-    search_similar_clothes_by_category
-)
+from services.supabase_service import search_similar_clothes_by_category
 from services.recommendation_service import filter_clothes
 
 
-def retrieve_clothes(user_id, query_embedding, intent, limit=5):
-
+def retrieve_clothes(
+    user_id,
+    query_embedding,
+    intent,
+    limit=5
+):
     # Convert Pydantic Intent → dictionary
     if hasattr(intent, "model_dump"):
         intent = intent.model_dump()
 
     all_clothes = []
 
-    # Retrieve broad categories
-    for category in ["top", "bottom", "dress", "footwear"]:
+    categories = [
+        "top",
+        "bottom",
+        "dress",
+        "footwear"
+    ]
+
+    for category in categories:
 
         items = search_similar_clothes_by_category(
             user_id=user_id,
@@ -25,7 +33,7 @@ def retrieve_clothes(user_id, query_embedding, intent, limit=5):
         all_clothes.extend(items)
 
     print("\n===== BEFORE FILTERING =====")
-    print("Total:", len(all_clothes))
+    print("Total clothes:", len(all_clothes))
 
     for item in all_clothes:
         print(
@@ -35,17 +43,18 @@ def retrieve_clothes(user_id, query_embedding, intent, limit=5):
             "|",
             item.get("color"),
             "|",
-            item.get("style")
+            item.get("style"),
+            "| similarity:",
+            item.get("similarity")
         )
 
-    # Apply intent-based filtering/ranking
     filtered_clothes = filter_clothes(
         all_clothes,
         intent
     )
 
     print("\n===== AFTER FILTERING =====")
-    print("Total:", len(filtered_clothes))
+    print("Total clothes:", len(filtered_clothes))
 
     for item in filtered_clothes:
         print(
@@ -55,7 +64,9 @@ def retrieve_clothes(user_id, query_embedding, intent, limit=5):
             "|",
             item.get("color"),
             "|",
-            item.get("style")
+            item.get("style"),
+            "| similarity:",
+            item.get("similarity")
         )
 
     return filtered_clothes

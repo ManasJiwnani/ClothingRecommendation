@@ -26,8 +26,11 @@ export default function AppTabs() {
           <TabTrigger name="closet" href="/closet" asChild>
             <TabButton icon="checkroom" label="Closet" />
           </TabTrigger>
-          <TabTrigger name="add" href="/add" asChild>
+          {/* <TabTrigger name="add" href="/add" asChild>
             <TabButton icon="add" label="" isAdd />
+          </TabTrigger> */}
+          <TabTrigger name="mirror" href="/mirror" asChild>
+            <TabButton icon="camera" label="Mirror" isAdd />
           </TabTrigger>
           <TabTrigger name="stylist" href="/stylist" asChild>
             <TabButton icon="auto_awesome" label="Stylist" />
@@ -41,7 +44,7 @@ export default function AppTabs() {
   );
 }
 
-type WebIcon = 'home' | 'checkroom' | 'add' | 'auto_awesome' | 'account_circle';
+type WebIcon = 'home' | 'checkroom' | 'camera' | 'auto_awesome' | 'account_circle';
 type TabButtonProps = TabTriggerSlotProps & { icon: WebIcon; label: string; isAdd?: boolean };
 
 export function TabButton({ icon, label, isAdd, isFocused, ...props }: TabButtonProps) {

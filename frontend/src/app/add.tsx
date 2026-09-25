@@ -137,5 +137,4 @@ const styles = StyleSheet.create({
   detailsText: { fontSize: 14, lineHeight: 20, color: '#747878' },
   analyzeButton: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6, borderRadius: 12, backgroundColor: '#1b1c1a' },
   analyzeText: { color: '#ffffff', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
-  
 });

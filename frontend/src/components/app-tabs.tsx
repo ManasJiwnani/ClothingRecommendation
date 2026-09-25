@@ -26,14 +26,9 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Label>Closet</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="mirror">
-        <NativeTabs.Trigger.Icon sf="camera" md="camera_alt" />
-        <NativeTabs.Trigger.Label>Mirror</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      {/* <NativeTabs.Trigger name="add">
+      <NativeTabs.Trigger name="add">
         <NativeTabs.Trigger.Icon sf="plus.circle.fill" md="add_circle" />
-      </NativeTabs.Trigger> */}
+      </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="stylist">
         <NativeTabs.Trigger.Icon sf="wand.and.stars" md="auto_awesome" />

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "MandlikGauri"}
+    { name = "MandlikGauri",}
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.13.5",
     "python-dotenv>=1.2.3",
     "python-multipart>=0.0.32",
-    "truststore>=0.10.4",
     "uvicorn>=0.52.4",
 ]
 

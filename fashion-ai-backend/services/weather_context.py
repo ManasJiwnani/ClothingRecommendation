@@ -1,25 +1,38 @@
 def get_weather_context(weather):
-    temperature = weather["temperature"]
+
+    temperature = weather.get("temperature", 25)
     rain = weather.get("rain", 0)
     weather_code = weather.get("weather_code")
 
-    # Temperature category
+    # -----------------------------------------
+    # TEMPERATURE CATEGORY
+    # -----------------------------------------
+
     if temperature >= 30:
         temperature_category = "hot"
+
     elif temperature >= 24:
         temperature_category = "warm"
+
     elif temperature >= 18:
         temperature_category = "cool"
+
     else:
         temperature_category = "cold"
 
-    # Rain category
+    # -----------------------------------------
+    # RAIN
+    # -----------------------------------------
+
     if rain > 0:
         rain_category = "rainy"
     else:
         rain_category = "dry"
 
-    # Overall weather category
+    # -----------------------------------------
+    # OVERALL
+    # -----------------------------------------
+
     if rain > 0:
         overall = "rainy"
     else:
@@ -31,15 +44,4 @@ def get_weather_context(weather):
         "rain_category": rain_category,
         "overall": overall,
         "weather_code": weather_code
-    }    
-    
-    weather = {
-        "temperature": 31,
-        "feels_like": 33,
-        "precipitation": 0,
-        "rain": 0,
-        "weather_code": 1,
-        "wind_speed": 12
     }
-    
-    print(get_weather_context(weather))

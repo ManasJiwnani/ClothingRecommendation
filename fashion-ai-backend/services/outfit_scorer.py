@@ -6,7 +6,7 @@
 # score style compatibility based on item styles and predefined style compatibility
 # score color compatibility based on item colors and predefined color compatibility
 # calculate total score for outfit based on individual item relevance, occasion compatibility, formality compatibility, style compatibility, color compatibility, and user color preference
-from services.weather_scorer import weather_score
+from services.weather_scorer import weather_score as item_weather_score
 from services.color_matcher import (
     score_outfit_colors
 )
@@ -74,7 +74,6 @@ STYLE_COMPATIBILITY = {
         "smart_casual"
     }
 }
-
 
 # GET ITEMS FROM OUTFIT
 def get_outfit_items(outfit):
@@ -403,12 +402,9 @@ def score_outfit(outfit, intent, weather=None):
 
     if weather:
         for item in items:
-            total_score += weather_score(item, weather)
+            total_score += item_weather_score(item, weather)
 
     return round(total_score, 2)
 
 
-    return round(
-        total_score,
-        2
-    )
+    

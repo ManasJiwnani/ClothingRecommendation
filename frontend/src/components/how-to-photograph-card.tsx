@@ -43,7 +43,11 @@ const rules: GuideRule[] = [
   },
 ];
 
-const materialIcon = (icon: GuideRule['icon']) => ({ ios: icon, android: icon, web: icon });
+const materialIcon = (icon: GuideRule['icon']) => ({
+  ios: icon as any,
+  android: icon as any,
+  web: icon as any,
+});
 
 function RuleCard({ rule }: { rule: GuideRule }) {
   return (

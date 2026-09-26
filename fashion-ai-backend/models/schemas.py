@@ -151,3 +151,92 @@ class RecommendationRequest(BaseModel):
                 f"Query embedding must have 768 dimensions, got {len(value)}"
             )
         return value
+
+class DailyRecommendationRequest(BaseModel):
+    user_id: str
+    preset: str = "weather"
+    latitude: float
+    longitude: float
+    top_k: int = Field(
+        default=5,
+        gt=0,
+        le=20
+    )
+
+class SwapItemRequest(BaseModel):
+    user_id: str
+    swap_category: str
+
+    current_item_id: str | None = None
+
+    locked_items: list[dict] = Field(
+        default_factory=list
+    )
+
+    limit: int = 5
+
+
+
+class LayerRecommendationRequest(BaseModel):
+    user_id: str
+
+    # IDs of the clothes currently present in the outfit
+    outfit_item_ids: list[str] = Field(
+        default_factory=list
+    )
+
+    # Optional: user can explicitly ask for a type of layer
+    layer_type: Optional[str] = None
+
+    # Optional weather information
+    temperature: Optional[float] = None
+
+    weather_condition: Optional[str] = None
+
+    # Number of layer recommendations
+    top_k: int = Field(
+        default=5,
+        gt=0,
+        le=10
+    )
+
+    @field_validator("layer_type")
+    @classmethod
+    def validate_layer_type(cls, value):
+
+        if value is None:
+            return value
+
+        allowed = [
+            "jacket",
+            "blazer",
+            "sweater",
+            "cardigan",
+            "shrug",
+            "hoodie",
+            "coat",
+            "vest",
+            "layer"
+        ]
+
+        value = value.lower().strip()
+
+        if value not in allowed:
+            raise ValueError(
+                f"Invalid layer_type. Choose from: {allowed}"
+            )
+
+        return value
+
+from typing import Any
+from pydantic import BaseModel
+
+
+class LikeOutfitRequest(BaseModel):
+    user_id: str
+    outfit: dict[str, Any]
+
+class LikeOutfitResponse(BaseModel):
+    success: bool
+    message: str
+    liked_outfit_id: str | None = None

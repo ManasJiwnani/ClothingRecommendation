@@ -1,8 +1,46 @@
-from supabase import create_client
+import os
+import ssl
+import certifi
+import httpx
+
+# # --------------------------------------------------
+# # SSL / CERTIFICATE CONFIGURATION
+# # --------------------------------------------------
+
+CERT_PATH = certifi.where()
+
+os.environ["SSL_CERT_FILE"] = CERT_PATH
+os.environ["REQUESTS_CA_BUNDLE"] = CERT_PATH
+
+# Optional: make Python's default SSL context use certifi
+try:
+    ssl._create_default_https_context = (
+        lambda: ssl.create_default_context(cafile=CERT_PATH)
+    )
+except Exception:
+    pass
+
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
+
+# --------------------------------------------------
+# SUPABASE
+# --------------------------------------------------
+
+from supabase import ClientOptions, create_client
 from config import settings
 
 
 _supabase = None
+
+
+def _build_httpx_client() -> httpx.Client:
+    ssl_context = ssl.create_default_context(cafile=CERT_PATH)
+    return httpx.Client(verify=ssl_context)
 
 
 def get_supabase_client():
@@ -16,7 +54,8 @@ def get_supabase_client():
 
         _supabase = create_client(
             settings.SUPABASE_URL,
-            settings.SUPABASE_KEY
+            settings.SUPABASE_KEY,
+            options=ClientOptions(httpx_client=_build_httpx_client()),
         )
 
     return _supabase
@@ -34,15 +73,22 @@ def add_clothing(clothing_data: dict):
     return response.data
 
 
-def get_user_clothes(user_id: str):
+def get_user_clothes(
+    user_id: str,
+    category: str | None = None
+):
 
-    response = (
+    query = (
         get_supabase_client()
         .table("clothes")
         .select("*")
         .eq("user_id", user_id)
-        .execute()
     )
+
+    if category:
+        query = query.eq("category", category)
+
+    response = query.execute()
 
     return response.data
 
@@ -121,3 +167,38 @@ def prepare_clothing_data(
         "occasions": attributes.get("occasions"),
         "embedding": embedding
     }
+
+# outfit liking functionality
+def like_outfit(user_id: str, outfit: dict):
+    supabase = get_supabase_client()
+
+    data = {
+        "user_id": user_id,
+        "outfit": outfit
+    }
+
+    response = (
+        supabase
+        .table("liked_outfits")
+        .insert(data)
+        .execute()
+    )
+
+    if not response.data:
+        raise Exception("Failed to save liked outfit")
+
+    return response.data[0]
+
+def get_liked_outfits(user_id: str):
+    supabase = get_supabase_client()
+
+    response = (
+        supabase
+        .table("liked_outfits")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    return response.data

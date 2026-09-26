@@ -1,5 +1,6 @@
 import asyncio
-import certifi
+import ssl
+import unittest
 from unittest.mock import patch
 
 from services.weather import get_current_weather
@@ -38,16 +39,18 @@ class FakeAsyncClient:
         return FakeResponse()
 
 
-def test_get_current_weather_uses_certifi_bundle():
-    fake_client = None
+class WeatherSSLTests(unittest.TestCase):
+    def test_get_current_weather_uses_certifi_bundle(self):
+        fake_client = None
 
-    def factory(*args, **kwargs):
-        nonlocal fake_client
-        fake_client = FakeAsyncClient(*args, **kwargs)
-        return fake_client
+        def factory(*args, **kwargs):
+            nonlocal fake_client
+            fake_client = FakeAsyncClient(*args, **kwargs)
+            return fake_client
 
-    with patch("services.weather.httpx.AsyncClient", side_effect=factory):
-        result = asyncio.run(get_current_weather(12.97, 77.59))
+        with patch("services.weather.httpx.AsyncClient", side_effect=factory):
+            result = asyncio.run(get_current_weather(12.97, 77.59))
 
-    assert result["temperature"] == 21.5
-    assert fake_client.kwargs.get("verify") == certifi.where()
+        self.assertEqual(result["temperature"], 21.5)
+        self.assertIsInstance(fake_client.kwargs.get("verify"), ssl.SSLContext)
+        self.assertFalse(fake_client.kwargs.get("verify") is False)

@@ -125,6 +125,9 @@ def is_color_compatible(color1, color2):
 
     return color2 in compatible_colors
 
+# Backwards-compatible public API used by the rest of the app.
+colors_compatible = is_color_compatible
+
 # SCORE TWO COLORS
 def score_color_pair(color1, color2):
 

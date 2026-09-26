@@ -6,119 +6,383 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
+
 import { SymbolView } from 'expo-symbols';
-import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+
+import {
+  Pressable,
+  useColorScheme,
+  View,
+  StyleSheet,
+} from 'react-native';
 
 import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
 
 import { Colors, Fonts } from '@/constants/theme';
 
 export default function AppTabs() {
   return (
     <Tabs>
-      <TabSlot style={{ height: '100%' }} />
+      {/* SCREEN CONTENT */}
+      <TabSlot style={styles.tabSlot} />
+
+      {/* BOTTOM NAVIGATION */}
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="index" href="/" asChild>
-            <TabButton icon="home" label="Home" />
+
+          {/* HOME */}
+          <TabTrigger
+            name="index"
+            href="/tabs"
+            asChild
+          >
+            <TabButton
+              icon="home"
+              label="Home"
+            />
           </TabTrigger>
-          <TabTrigger name="closet" href="/closet" asChild>
-            <TabButton icon="checkroom" label="Closet" />
+
+          {/* CLOSET */}
+          <TabTrigger
+            name="closet"
+            href="/tabs/closet"
+            asChild
+          >
+            <TabButton
+              icon="checkroom"
+              label="Closet"
+            />
           </TabTrigger>
-          {/* <TabTrigger name="add" href="/add" asChild>
-            <TabButton icon="add" label="" isAdd />
-          </TabTrigger> */}
-          <TabTrigger name="mirror" href="/mirror" asChild>
-            <TabButton icon="camera" label="Mirror" isAdd />
+
+          {/* MIRROR - CENTER BUTTON */}
+          <TabTrigger
+            name="mirror"
+            href="/tabs/mirror"
+            asChild
+          >
+            <TabButton
+              icon="camera"
+              label="Mirror"
+              isAdd
+            />
           </TabTrigger>
-          <TabTrigger name="stylist" href="/stylist" asChild>
-            <TabButton icon="auto_awesome" label="Stylist" />
+
+          {/* STYLIST */}
+          <TabTrigger
+            name="stylist"
+            href="/tabs/stylist"
+            asChild
+          >
+            <TabButton
+              icon="auto_awesome"
+              label="Stylist"
+            />
           </TabTrigger>
-          <TabTrigger name="profile" href="/profile" asChild>
-            <TabButton icon="account_circle" label="Profile" />
+
+          {/* PROFILE */}
+          <TabTrigger
+            name="profile"
+            href="/tabs/profile"
+            asChild
+          >
+            <TabButton
+              icon="account_circle"
+              label="Profile"
+            />
           </TabTrigger>
+
         </CustomTabList>
       </TabList>
     </Tabs>
   );
 }
 
-type WebIcon = 'home' | 'checkroom' | 'camera' | 'auto_awesome' | 'account_circle';
-type TabButtonProps = TabTriggerSlotProps & { icon: WebIcon; label: string; isAdd?: boolean };
 
-export function TabButton({ icon, label, isAdd, isFocused, ...props }: TabButtonProps) {
+/* =========================================================
+   ICON TYPES
+========================================================= */
+
+type WebIcon =
+  | 'home'
+  | 'checkroom'
+  | 'camera'
+  | 'auto_awesome'
+  | 'account_circle';
+
+
+/* =========================================================
+   TAB BUTTON
+========================================================= */
+
+type TabButtonProps = TabTriggerSlotProps & {
+  icon: WebIcon;
+  label: string;
+  isAdd?: boolean;
+};
+
+export function TabButton({
+  icon,
+  label,
+  isAdd,
+  isFocused,
+  ...props
+}: TabButtonProps) {
+
   return (
-    <Pressable {...props} style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}>
-      <View style={[styles.iconWrap, isAdd && styles.addButton]}>
-        <SymbolView
-          tintColor={isAdd ? '#f6efe7' : isFocused ? '#111111' : '#555555'}
-          name={{ android: icon, web: icon }}
-          size={isAdd ? 30 : 28}
-        />
+    <Pressable
+      {...props}
+      style={({ pressed }) => [
+        styles.tabButton,
+        pressed && styles.pressed,
+      ]}
+    >
+
+      {/* ICON */}
+      <View
+        style={[
+          styles.iconWrap,
+          isAdd && styles.mirrorIconWrap,
+        ]}
+      >
+
+        <View
+          style={[
+            styles.iconCircle,
+            isAdd && styles.mirrorCircle,
+          ]}
+        >
+
+          <SymbolView
+            name={{
+              android: icon,
+              web: icon,
+            }}
+            size={isAdd ? 28 : 23}
+            tintColor={
+              isAdd
+                ? '#ffffff'
+                : isFocused
+                  ? '#111111'
+                  : '#55504b'
+            }
+          />
+
+        </View>
+
       </View>
-      {label ? <ThemedText style={styles.label}>{label}</ThemedText> : null}
+
+
+      {/* LABEL */}
+      <ThemedText
+        style={[
+          styles.label,
+          isFocused && !isAdd && styles.activeLabel,
+        ]}
+      >
+        {label}
+      </ThemedText>
+
     </Pressable>
   );
 }
 
+
+/* =========================================================
+   BOTTOM TAB CONTAINER
+========================================================= */
+
 export function CustomTabList(props: TabListProps) {
+
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+
+  const colors =
+    Colors[
+      scheme === 'unspecified'
+        ? 'light'
+        : scheme
+    ];
 
   return (
-    <View {...props} style={[styles.tabListContainer, { borderBottomColor: colors.text }]}>
-      <View style={styles.innerContainer}>{props.children}</View>
+    <View
+      {...props}
+      style={[
+        styles.tabListContainer,
+        {
+          borderTopColor: colors.backgroundElement,
+        },
+      ]}
+    >
+
+      <View style={styles.innerContainer}>
+        {props.children}
+      </View>
+
     </View>
   );
 }
 
+
+/* =========================================================
+   STYLES
+========================================================= */
+
 const styles = StyleSheet.create({
+
+  /* -------------------------------------------------------
+     SCREEN CONTENT
+  ------------------------------------------------------- */
+
+  tabSlot: {
+    flex: 1,
+  },
+
+
+  /* -------------------------------------------------------
+     BOTTOM BAR
+  ------------------------------------------------------- */
+
   tabListContainer: {
     position: 'absolute',
-    width: '100%',
+
+    left: 0,
+    right: 0,
     bottom: 0,
-    height: 90,
+
+    height: 78,
+
     backgroundColor: '#fbf9f6',
-    borderBottomWidth: 3,
-    borderBottomColor: '#6556f5',
+
+    borderTopWidth: 1,
+    borderTopColor: '#e5e1dc',
+
+    zIndex: 100,
+
+    boxShadow:
+      '0 -2px 10px rgba(0, 0, 0, 0.06)',
   },
+
+
+  /* -------------------------------------------------------
+     INNER ROW
+  ------------------------------------------------------- */
+
   innerContainer: {
-    height: '100%',
     width: '100%',
+    height: '100%',
+
     flexDirection: 'row',
+
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
+
+
+  /* -------------------------------------------------------
+     INDIVIDUAL TAB
+  ------------------------------------------------------- */
+
   tabButton: {
     flex: 1,
-    minWidth: 0,
-    height: 76,
+
+    height: 78,
+
     alignItems: 'center',
     justifyContent: 'center',
+
+    paddingTop: 6,
+
     gap: 2,
+
+    position: 'relative',
   },
+
+
   pressed: {
-    opacity: 0.7,
+    opacity: 0.65,
   },
+
+
+  /* -------------------------------------------------------
+     NORMAL ICON
+  ------------------------------------------------------- */
+
   iconWrap: {
-    height: 36,
-    justifyContent: 'center',
+    height: 32,
+
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  addButton: {
+
+
+  iconCircle: {
+    width: 32,
+    height: 32,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+
+  /* -------------------------------------------------------
+     MIRROR CENTER ICON
+  ------------------------------------------------------- */
+
+  mirrorIconWrap: {
+    height: 45,
+
     width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: '#050505',
-    boxShadow: '0 3px 8px rgba(0, 0, 0, 0.2)',
-    transform: [{ translateY: -10 }],
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    marginTop: -24,
+
+    zIndex: 20,
   },
+
+
+  mirrorCircle: {
+    width: 58,
+    height: 58,
+
+    borderRadius: 29,
+
+    backgroundColor: '#050505',
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    borderWidth: 2,
+    borderColor: '#ffffff',
+
+    boxShadow:
+      '0 3px 8px rgba(0, 0, 0, 0.25)',
+  },
+
+
+  /* -------------------------------------------------------
+     LABEL
+  ------------------------------------------------------- */
+
   label: {
     color: '#4c4a48',
+
     fontFamily: Fonts.sans,
-    fontSize: 13,
+
+    fontSize: 10,
+
     fontWeight: '700',
-    letterSpacing: 0,
+
+    letterSpacing: 0.3,
+
     textTransform: 'uppercase',
+
+    marginTop: 1,
   },
+
+
+  activeLabel: {
+    color: '#111111',
+  },
+
 });

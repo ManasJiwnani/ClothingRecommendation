@@ -49,7 +49,7 @@ export default function AuthCallback() {
       }
 
       const { data: profile } = await supabase
-        .from("user_profiles")
+        .from("user_preferences")
         .select("onboarding_completed")
         .eq("id", user.id)
         .single();
@@ -57,7 +57,7 @@ export default function AuthCallback() {
       // New Google user
       if (!profile) {
         await supabase
-          .from("user_profiles")
+          .from("user_preferences")
           .insert({
             id: user.id,
             onboarding_completed: false,

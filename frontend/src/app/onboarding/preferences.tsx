@@ -280,7 +280,7 @@ export default function PreferencesScreen() {
       }
 
       const { error } = await supabase
-        .from("user_profiles")
+        .from("user_preferences")
         .upsert(
           {
             id: user.id,

@@ -43,11 +43,16 @@ const rules: GuideRule[] = [
   },
 ];
 
-const materialIcon = (icon: GuideRule['icon']) => ({
-  ios: icon as any,
-  android: icon as any,
-  web: icon as any,
-});
+const materialIcon = (icon: GuideRule['icon']) => {
+  const icons = {
+    check_circle: { ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' },
+    wb_sunny: { ios: 'sun.max.fill', android: 'wb_sunny', web: 'wb_sunny' },
+    contrast: { ios: 'circle.lefthalf.filled', android: 'contrast', web: 'contrast' },
+    crop_free: { ios: 'viewfinder', android: 'crop_free', web: 'crop_free' },
+  } as const;
+
+  return icons[icon];
+};
 
 function RuleCard({ rule }: { rule: GuideRule }) {
   return (

@@ -3,42 +3,96 @@ import {
   DefaultTheme,
   ThemeProvider,
   Stack,
-} from 'expo-router';
+  router,
+} from "expo-router";
 
-import * as SplashScreen from 'expo-splash-screen';
+import * as SplashScreen from "expo-splash-screen";
 
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useState } from "react";
+import { useColorScheme } from "react-native";
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { supabase } from "../lib/supabase";
+import { AnimatedSplashOverlay } from "@/components/animated-icon";
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  const [sessionChecked, setSessionChecked] = useState(false);
+
   useEffect(() => {
-    SplashScreen.preventAutoHideAsync().catch(() => undefined);
+    let mounted = true;
+
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+
+      if (data.session) {
+        router.replace("/tabs" as any);
+      } else {
+        router.replace("/auth/login");
+      }
+
+      setSessionChecked(true);
+
+      await SplashScreen.hideAsync();
+    };
+
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!mounted) return;
+
+        if (session) {
+          router.replace("/tabs" as any);
+        } else {
+          router.replace("/auth/login" as any);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  if (!sessionChecked) {
+    return <AnimatedSplashOverlay />;
+  }
 
   return (
     <ThemeProvider
       value={
-        colorScheme === 'dark'
+        colorScheme === "dark"
           ? DarkTheme
           : DefaultTheme
       }
     >
-      <AnimatedSplashOverlay />
-
       <Stack
         screenOptions={{
           headerShown: false,
         }}
       >
+        <Stack.Screen name="index" />
+
+        <Stack.Screen name="auth" />
+
         <Stack.Screen name="tabs" />
+
         <Stack.Screen name="saved" />
+
         <Stack.Screen name="itinerary" />
+
         <Stack.Screen name="try_on" />
+
         <Stack.Screen name="add" />
+
         <Stack.Screen name="explore" />
       </Stack>
     </ThemeProvider>

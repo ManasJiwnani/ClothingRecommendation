@@ -54,15 +54,6 @@ export default function TabsLayout() {
           paddingTop: 10,
           paddingBottom: 5,
 
-          elevation: 0,
-
-          shadowColor: '#0b0b0b',
-          shadowOffset: {
-            width: 0,
-            height: -2,
-          },
-          shadowOpacity: 0,
-          shadowRadius: 6,
         },
 
         tabBarLabelStyle: {

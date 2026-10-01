@@ -647,7 +647,7 @@ export default function MirrorScreen() {
               <Pressable
                 onPress={() => {
                   router.push({
-                    pathname: '/try_on',
+                    pathname: '/try_on' as any,
                     params: {
                       top: selectedTop?.image?.uri ?? '',
                       bottom: selectedBottom?.image?.uri ?? '',
@@ -1757,14 +1757,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E5E1DC',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 5,
+    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.1)',
   },
 
   cardImageArea: {
@@ -1803,14 +1796,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    elevation: 3,
+    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.12)',
   },
 
   cardLikeButtonActive: {

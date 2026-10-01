@@ -30,7 +30,7 @@ export default function RootLayout() {
       if (!mounted) return;
 
       if (data.session) {
-        router.replace("/tabs");
+        router.replace("/tabs" as any);
       } else {
         router.replace("/auth/login");
       }
@@ -49,9 +49,9 @@ export default function RootLayout() {
         if (!mounted) return;
 
         if (session) {
-          router.replace("/tabs");
+          router.replace("/tabs" as any);
         } else {
-          router.replace("/auth/login");
+          router.replace("/auth/login" as any);
         }
       }
     );

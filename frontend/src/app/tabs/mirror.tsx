@@ -647,7 +647,7 @@ export default function MirrorScreen() {
               <Pressable
                 onPress={() => {
                   router.push({
-                    pathname: '/try_on',
+                    pathname: '/try_on' as any,
                     params: {
                       top: selectedTop?.image?.uri ?? '',
                       bottom: selectedBottom?.image?.uri ?? '',

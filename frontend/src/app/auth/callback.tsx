@@ -22,33 +22,60 @@ export default function AuthCallback() {
           ? params.type
           : "signup";
 
+      console.log("OAuth params:", params);
+
       if (!code) {
+        console.log("No OAuth code found");
         router.replace("/auth/auth-error");
         return;
       }
 
       const { error } =
-        await supabase.auth.exchangeCodeForSession(
-          code
-        );
+        await supabase.auth.exchangeCodeForSession(code);
 
       if (error) {
-        console.error(
-          "AUTH CALLBACK ERROR:",
-          error
-        );
-
+        console.error("AUTH CALLBACK ERROR:", error);
         router.replace("/auth/auth-error");
         return;
       }
 
-      if (type === "recovery") {
-        router.replace("/auth/reset-password");
-      } else {
-        router.replace("/preferences");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/auth/auth-error");
+        return;
       }
+
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .single();
+
+      // New Google user
+      if (!profile) {
+        await supabase
+          .from("user_profiles")
+          .insert({
+            id: user.id,
+            onboarding_completed: false,
+          });
+
+        router.replace("/onboarding/preferences" as any);
+        return;
+      }
+
+      // Existing user
+      if (profile.onboarding_completed) {
+        router.replace("/tabs" as any);
+      } else {
+        router.replace("/onboarding/preferences" as any);
+      }
+
     } catch (error) {
-      console.error(error);
+      console.error("CALLBACK ERROR:", error);
       router.replace("/auth/auth-error");
     }
   };

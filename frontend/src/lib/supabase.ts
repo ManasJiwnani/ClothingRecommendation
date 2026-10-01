@@ -1,42 +1,45 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL!;
 
-// Use AsyncStorage on mobile and localStorage on web
+const SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+const memoryStorage = {
+  getItem: async (_key: string) => null,
+
+  setItem: async (
+    _key: string,
+    _value: string
+  ) => {},
+
+  removeItem: async (_key: string) => {},
+};
+
 const storage =
   Platform.OS === "web"
-    ? {
-        getItem: (key: string) => {
-          if (typeof window === "undefined") return null;
-          return Promise.resolve(window.localStorage.getItem(key));
-        },
-
-        setItem: (key: string, value: string) => {
-          if (typeof window === "undefined") return;
-          window.localStorage.setItem(key, value);
-          return Promise.resolve();
-        },
-
-        removeItem: (key: string) => {
-          if (typeof window === "undefined") return;
-          window.localStorage.removeItem(key);
-          return Promise.resolve();
-        },
-      }
+    ? typeof window !== "undefined"
+      ? window.localStorage
+      : memoryStorage
     : AsyncStorage;
 
 export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
   {
     auth: {
       storage,
+
       autoRefreshToken: true,
+
       persistSession: true,
+
       detectSessionInUrl: false,
+
+      flowType: "pkce",
     },
   }
 );

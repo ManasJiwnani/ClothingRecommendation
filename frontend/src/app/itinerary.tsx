@@ -94,15 +94,20 @@ export default function ItineraryScreen() {
           <View style={styles.header}>
  
             <Pressable
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <SymbolView
-                name="arrow.left"
-                size={18}
-                tintColor="#000000"
-              />
-            </Pressable>
+                          style={styles.backButton}
+                          onPress={() => router.back()}
+                        >
+                          <SymbolView
+                            name={{
+                              ios: 'arrow.left',
+                              android: 'arrow_back',
+                              web: 'arrow_back',
+                            }}
+                            size={18}
+                            weight="semibold"
+                            tintColor="#000000"
+                          />
+                        </Pressable>
  
             <Text style={styles.kicker}>
               STYLE PLANNER

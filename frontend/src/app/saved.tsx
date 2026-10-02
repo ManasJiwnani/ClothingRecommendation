@@ -72,9 +72,14 @@ export default function SavedScreen() {
               onPress={() => router.back()}
             >
               <SymbolView
-                name="arrow.left"
+                name={{
+                  ios: 'arrow.left',
+                  android: 'arrow_back',
+                  web: 'arrow_back',
+                }}
                 size={18}
-                tintColor="#1b1c1a"
+                weight="semibold"
+                tintColor="#000000"
               />
             </Pressable>
  

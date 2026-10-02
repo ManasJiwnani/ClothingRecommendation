@@ -580,7 +580,7 @@ export default function HomeScreen() {
                 <Image
                   source={currentModelImage}
                   style={styles.modelImage}
-                  contentFit="cover"
+                  contentFit="contain"
                 />
 
                 <View style={styles.modelOverlay} />
@@ -663,7 +663,7 @@ export default function HomeScreen() {
                   <Image
                     source={item.image}
                     style={styles.productImage}
-                    contentFit="cover"
+                    contentFit="contain"
                   />
 
                   <Text style={styles.productCategory}>
@@ -918,8 +918,8 @@ header: {
   },
 
   modelContainer: {
-    width: '50%',
-    height: 410,
+    width: '100%',
+    height: 430,
     backgroundColor: '#dededb',
     position: 'relative',
   },
@@ -978,7 +978,7 @@ header: {
   },
 
   outfitItem: {
-    minHeight: 45,
+    minHeight: 75,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

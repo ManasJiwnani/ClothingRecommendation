@@ -1,70 +1,1647 @@
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  Platform,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
+/* cspell:ignore supabase */
+import { supabase } from '@/lib/supabase';
 
-const moods = ['Minimalist', 'Quiet Luxury', 'Smart Casual', 'Old Money', 'Streetwear', 'Vintage Atelier'];
+const moods = [
+  'Minimalist',
+  'Quiet Luxury',
+  'Smart Casual',
+  'Old Money',
+  'Streetwear',
+  'Vintage Atelier',
+];
 
 const cuts = [
-  { label: 'Tops', value: 'Oversized & Relaxed Drop-Shoulder', icon: 'checkroom', badge: 'High Affinity' },
-  { label: 'Bottoms', value: 'Straight-Leg High-Rise', icon: 'straighten', badge: 'Signature Cut' },
-  { label: 'Outerwear', value: 'Structured Boxy Tailoring', icon: 'dry_cleaning', badge: 'Active' },
+  {
+    label: 'Tops',
+    value: 'Oversized & Relaxed Drop-Shoulder',
+    icon: 'checkroom',
+    badge: 'High Affinity',
+  },
+  {
+    label: 'Bottoms',
+    value: 'Straight-Leg High-Rise',
+    icon: 'straighten',
+    badge: 'Signature Cut',
+  },
+  {
+    label: 'Outerwear',
+    value: 'Structured Boxy Tailoring',
+    icon: 'dry_cleaning',
+    badge: 'Active',
+  },
 ] as const;
 
-function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return <View style={styles.sectionTitle}><ThemedText style={styles.eyebrow}>{eyebrow}</ThemedText><ThemedText style={styles.sectionHeading}>{title}</ThemedText></View>;
+function SectionTitle({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <View style={styles.sectionTitle}>
+      <ThemedText style={styles.eyebrow}>{eyebrow}</ThemedText>
+
+      <ThemedText style={styles.sectionHeading}>
+        {title}
+      </ThemedText>
+    </View>
+  );
 }
 
-function ToggleRow({ title, detail, value, onValueChange }: { title: string; detail: string; value: boolean; onValueChange: (value: boolean) => void }) {
-  return <View style={styles.toggleRow}><View style={styles.toggleCopy}><ThemedText style={styles.rowTitle}>{title}</ThemedText><ThemedText style={styles.rowDetail}>{detail}</ThemedText></View><Pressable accessibilityRole="switch" accessibilityState={{ checked: value }} onPress={() => onValueChange(!value)} style={[styles.switch, value && styles.switchOn]}><View style={[styles.switchThumb, value && styles.switchThumbOn]} /></Pressable></View>;
+function ToggleRow({
+  title,
+  detail,
+  value,
+  onValueChange,
+}: {
+  title: string;
+  detail: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={styles.toggleRow}>
+      <View style={styles.toggleCopy}>
+        <ThemedText style={styles.rowTitle}>
+          {title}
+        </ThemedText>
+
+        <ThemedText style={styles.rowDetail}>
+          {detail}
+        </ThemedText>
+      </View>
+
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityState={{ checked: value }}
+        onPress={() => onValueChange(!value)}
+        style={[
+          styles.switch,
+          value && styles.switchOn,
+        ]}
+      >
+        <View
+          style={[
+            styles.switchThumb,
+            value && styles.switchThumbOn,
+          ]}
+        />
+      </Pressable>
+    </View>
+  );
 }
 
 export default function ProfileScreen() {
-  const [selectedMoods, setSelectedMoods] = useState(['Minimalist', 'Quiet Luxury', 'Smart Casual', 'Old Money']);
-  const [isEditingMoods, setIsEditingMoods] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [selectedMoods, setSelectedMoods] = useState([
+    'Minimalist',
+    'Quiet Luxury',
+    'Smart Casual',
+    'Old Money',
+  ]);
+
+  const [isEditingMoods, setIsEditingMoods] =
+    useState(false);
+
   const [newMood, setNewMood] = useState('');
-  const [profileName, setProfileName] = useState('Elena Rostova');
-  const [nameDraft, setNameDraft] = useState('Elena Rostova');
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [weatherGuidance, setWeatherGuidance] = useState(true);
-  const [seasonalPalette, setSeasonalPalette] = useState(true);
-  const toggleMood = (mood: string) => setSelectedMoods((current) => current.includes(mood) ? current.filter((item) => item !== mood) : [...current, mood]);
+
+  const [profileName, setProfileName] =
+    useState('Elena Rostova');
+
+  const [nameDraft, setNameDraft] =
+    useState('Elena Rostova');
+
+  const [isEditingName, setIsEditingName] =
+    useState(false);
+
+  const [weatherGuidance, setWeatherGuidance] =
+    useState(true);
+
+  const [seasonalPalette, setSeasonalPalette] =
+    useState(true);
+
+  const toggleMood = (mood: string) => {
+    setSelectedMoods((current) =>
+      current.includes(mood)
+        ? current.filter((item) => item !== mood)
+        : [...current, mood]
+    );
+  };
+
   const addMood = () => {
     const mood = newMood.trim();
-    if (!mood || selectedMoods.includes(mood)) return;
-    setSelectedMoods((current) => [...current, mood]);
+
+    if (!mood || selectedMoods.includes(mood)) {
+      return;
+    }
+
+    setSelectedMoods((current) => [
+      ...current,
+      mood,
+    ]);
+
     setNewMood('');
   };
-  const availableMoods = [...moods, ...selectedMoods.filter((mood) => !moods.includes(mood))];
+
+  const availableMoods = [
+    ...moods,
+    ...selectedMoods.filter(
+      (mood) => !moods.includes(mood)
+    ),
+  ];
+
   const saveName = () => {
     const nextName = nameDraft.trim();
-    if (!nextName) return;
+
+    if (!nextName) {
+      return;
+    }
+
     setProfileName(nextName);
     setIsEditingName(false);
   };
 
+  // =========================================================
+  // LOGOUT
+  // =========================================================
+
+  const performLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+
+    const showLogoutError = (message: string) => {
+      if (Platform.OS === 'web') {
+        window.alert(`Logout failed: ${message}`);
+      } else {
+        Alert.alert('Logout failed', message);
+      }
+    };
+
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        console.error('LOGOUT ERROR:', error);
+        showLogoutError(error.message);
+        setIsLoggingOut(false);
+        return;
+      }
+
+      router.replace('/auth/login');
+    } catch (error) {
+      console.error('LOGOUT ERROR:', error);
+      showLogoutError(
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong. Please try again.'
+      );
+      setIsLoggingOut(false);
+    }
+  };
+
+  const handleLogout = () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to log out?')) {
+        void performLogout();
+      }
+      return;
+    }
+
+    Alert.alert(
+      'Log out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: () => void performLogout(),
+        },
+      ]
+    );
+  };
+
   return (
-    <ThemedView style={styles.container}><SafeAreaView style={styles.safeArea}><ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={[styles.content, { paddingTop: Spacing.three }]} showsVerticalScrollIndicator={false}>
-      <View style={{ gap: 5 }}><View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}><View><ThemedText style={{ fontFamily: Fonts.sans, fontSize: 11, fontWeight: '700', letterSpacing: 2, color: '#745a38' }}>STYLE SENSE</ThemedText><ThemedText style={{ fontFamily: Fonts.serif, fontSize: 32, lineHeight: 40, fontWeight: '500', marginTop: 4 }}>Profile</ThemedText></View><View style={{ alignItems: 'flex-end', gap: 2 }}><ThemedText style={styles.weatherText}>PARIS</ThemedText><ThemedText style={{ fontFamily: Fonts.serif, fontSize: 18, color: '#745a38' }}>19°C</ThemedText></View></View><ThemedText style={{ color: '#747878', fontSize: 14, lineHeight: 20 }}>Your personal style profile and wardrobe intelligence.</ThemedText></View>
-      <View style={styles.profileHeader}><View style={styles.avatar}><ThemedText style={styles.avatarText}>ER</ThemedText></View>{isEditingName ? <View style={styles.nameEditor}><TextInput autoFocus value={nameDraft} onChangeText={setNameDraft} onSubmitEditing={saveName} returnKeyType="done" style={styles.nameInput} /><View style={styles.nameActions}><Pressable onPress={() => { setNameDraft(profileName); setIsEditingName(false); }}><ThemedText style={styles.cancelText}>CANCEL</ThemedText></Pressable><Pressable onPress={saveName} style={styles.saveButton}><ThemedText style={styles.saveText}>SAVE</ThemedText></Pressable></View></View> : <View style={styles.nameRow}><ThemedText style={styles.profileName}>{profileName}</ThemedText><Pressable accessibilityLabel="Edit profile name" onPress={() => setIsEditingName(true)} style={styles.nameEditButton}><SymbolView name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={15} tintColor="#745a38" /></Pressable></View>}<ThemedText style={styles.profileDetail}>Member since Oct 2023</ThemedText></View>
-      <SectionTitle eyebrow="PERSONAL EDIT" title="Style Preferences & DNA" />
-      <View style={styles.panel}><View style={styles.panelHeader}><ThemedText style={styles.panelTitle}>Preferred Aesthetics & Moods</ThemedText><Pressable onPress={() => setIsEditingMoods((current) => !current)}><ThemedText style={styles.editText}>{isEditingMoods ? 'DONE' : 'EDIT'}</ThemedText></Pressable></View>{isEditingMoods ? <View style={styles.addMoodRow}><TextInput value={newMood} onChangeText={setNewMood} onSubmitEditing={addMood} placeholder="Type a new mood" placeholderTextColor="#747878" returnKeyType="done" style={styles.moodInput} /><Pressable accessibilityLabel="Add mood" onPress={addMood} style={styles.addMoodButton}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={17} tintColor="#ffddb4" /></Pressable></View> : null}<View style={styles.moodWrap}>{availableMoods.map((mood) => { const selected = selectedMoods.includes(mood); return <Pressable key={mood} onPress={() => toggleMood(mood)} style={[styles.mood, selected ? styles.moodSelected : styles.moodUnselected]}><SymbolView name={{ ios: isEditingMoods && selected ? 'minus' : selected ? 'checkmark' : 'plus', android: isEditingMoods && selected ? 'remove' : selected ? 'check' : 'add', web: isEditingMoods && selected ? 'remove' : selected ? 'check' : 'add' }} size={13} tintColor={selected ? '#ffddb4' : '#747878'} /><ThemedText style={[styles.moodText, selected && styles.moodTextSelected]}>{mood}</ThemedText></Pressable>; })}</View></View>
-      <View style={styles.panel}><View style={styles.panelHeader}><ThemedText style={styles.panelTitle}>Preferred Silhouettes & Cuts</ThemedText><ThemedText style={styles.affinity}>TAILORED MATCH</ThemedText></View><View style={styles.cutList}>{cuts.map((cut) => <View key={cut.label} style={styles.cutRow}><View style={styles.cutInfo}><View style={styles.cutIcon}><SymbolView name={{ ios: cut.icon === 'checkroom' ? 'hanger' : 'square.grid.2x2', android: cut.icon, web: cut.icon }} size={18} tintColor="#1b1c1a" /></View><View style={styles.cutCopy}><ThemedText style={styles.cutLabel}>{cut.label}</ThemedText><ThemedText style={styles.cutValue}>{cut.value}</ThemedText></View></View><ThemedText style={[styles.cutBadge, cut.badge === 'High Affinity' ? styles.badgeWarm : styles.badgeNeutral]}>{cut.badge}</ThemedText></View>)}</View></View>
-      <View style={styles.panel}><View style={styles.panelHeader}><ThemedText style={styles.panelTitle}>Lifestyle & Occasions Split</ThemedText><ThemedText style={styles.affinity}>WEIGHTED 100%</ThemedText></View><View style={styles.splitBar}><View style={[styles.splitSegment, { flex: 45, backgroundColor: '#1b1c1a' }]} /><View style={[styles.splitSegment, { flex: 35, backgroundColor: '#745a38' }]} /><View style={[styles.splitSegment, { flex: 20, backgroundColor: '#e3c197' }]} /></View><View style={styles.splitLabels}>{[['45%', 'WORK & CREATIVE'], ['35%', 'WEEKEND & LEISURE'], ['20%', 'EVENING & DINING']].map(([percent, label]) => <View key={label} style={styles.splitItem}><ThemedText style={styles.percent}>{percent}</ThemedText><ThemedText style={styles.splitLabel}>{label}</ThemedText></View>)}</View></View>
-      <SectionTitle eyebrow="WARDROBE INTELLIGENCE" title="A considered closet" /><View style={styles.metricGrid}><View style={styles.metricCard}><ThemedText style={styles.metricValue}>84</ThemedText><ThemedText style={styles.metricLabel}>ITEMS AUDITED</ThemedText></View><View style={styles.metricCard}><ThemedText style={styles.metricValue}>72%</ThemedText><ThemedText style={styles.metricLabel}>STYLE COHERENCE</ThemedText></View></View>
-      <View style={styles.panel}><View style={styles.panelHeader}><ThemedText style={styles.panelTitle}>Category Distribution</ThemedText><ThemedText style={styles.affinity}>84 ITEMS AUDITED</ThemedText></View><View style={styles.splitBar}><View style={[styles.splitSegment, { flex: 38, backgroundColor: '#1b1c1a' }]} /><View style={[styles.splitSegment, { flex: 24, backgroundColor: '#5a4222' }]} /><View style={[styles.splitSegment, { flex: 18, backgroundColor: '#745a38' }]} /><View style={[styles.splitSegment, { flex: 12, backgroundColor: '#e3c197' }]} /><View style={[styles.splitSegment, { flex: 8, backgroundColor: '#c4c7c7' }]} /></View><ThemedText style={styles.distribution}>Tops 38%   ·   Bottoms 24%   ·   Shoes 18%   ·   Outerwear 12%   ·   Acc 8%</ThemedText></View>
-      <SectionTitle eyebrow="AUTONOMOUS DIRECTOR" title="AI Stylist Calibrations" /><View style={styles.panel}><ToggleRow title="Weather-Adaptive Guidance" detail="Synced with Paris meteorological feed (19°C)" value={weatherGuidance} onValueChange={setWeatherGuidance} /><View style={styles.divider} /><ToggleRow title="Seasonal Palette Shift" detail="Transitioning recommendations to Autumn Capsule" value={seasonalPalette} onValueChange={setSeasonalPalette} /><View style={styles.divider} /><View style={styles.sliderRow}><View><ThemedText style={styles.rowTitle}>Director's Influence</ThemedText><ThemedText style={styles.rowDetail}>Balance personal taste with discovery</ThemedText></View><ThemedText style={styles.sliderValue}>80%</ThemedText></View><View style={styles.sliderTrack}><View style={styles.sliderFill} /></View></View>
-      <View style={styles.settings}><Pressable style={styles.settingRow}><SymbolView name={{ ios: 'person.text.rectangle', android: 'badge', web: 'badge' }} size={19} tintColor="#745a38" /><ThemedText style={styles.settingText}>Personal details</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={17} tintColor="#747878" /></Pressable><View style={styles.divider} /><Pressable style={styles.settingRow}><SymbolView name={{ ios: 'lock.shield', android: 'lock', web: 'lock' }} size={19} tintColor="#745a38" /><ThemedText style={styles.settingText}>Privacy & data</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={17} tintColor="#747878" /></Pressable></View><View style={styles.colophon}><ThemedText style={styles.colophonText}>STYLESENSE ATELIER EDITION 4.2</ThemedText><ThemedText style={styles.colophonText}>CURATED FOR {profileName.toUpperCase()}</ThemedText></View>
-    </ScrollView></SafeAreaView></ThemedView>
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: Spacing.three,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+
+          {/* ================================================= */}
+          {/* HEADER */}
+          {/* ================================================= */}
+
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+
+              <View>
+                <ThemedText
+                  style={styles.styleSense}
+                >
+                  STYLE SENSE
+                </ThemedText>
+
+                <ThemedText
+                  style={styles.profileTitle}
+                >
+                  Profile
+                </ThemedText>
+              </View>
+
+              <View style={styles.headerWeather}>
+                <ThemedText
+                  style={styles.weatherText}
+                >
+                  PARIS
+                </ThemedText>
+
+                <ThemedText
+                  style={styles.weatherTemperature}
+                >
+                  19°C
+                </ThemedText>
+              </View>
+
+            </View>
+
+            <ThemedText style={styles.subtitle}>
+              Your personal style profile and wardrobe
+              intelligence.
+            </ThemedText>
+          </View>
+
+          {/* ================================================= */}
+          {/* PROFILE HEADER */}
+          {/* ================================================= */}
+
+          <View style={styles.profileHeader}>
+
+            <View style={styles.avatar}>
+              <ThemedText style={styles.avatarText}>
+                ER
+              </ThemedText>
+            </View>
+
+            {isEditingName ? (
+              <View style={styles.nameEditor}>
+
+                <TextInput
+                  autoFocus
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  onSubmitEditing={saveName}
+                  returnKeyType="done"
+                  style={styles.nameInput}
+                />
+
+                <View style={styles.nameActions}>
+
+                  <Pressable
+                    onPress={() => {
+                      setNameDraft(profileName);
+                      setIsEditingName(false);
+                    }}
+                  >
+                    <ThemedText
+                      style={styles.cancelText}
+                    >
+                      CANCEL
+                    </ThemedText>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={saveName}
+                    style={styles.saveButton}
+                  >
+                    <ThemedText
+                      style={styles.saveText}
+                    >
+                      SAVE
+                    </ThemedText>
+                  </Pressable>
+
+                </View>
+              </View>
+            ) : (
+              <View style={styles.nameRow}>
+
+                <ThemedText
+                  style={styles.profileName}
+                >
+                  {profileName}
+                </ThemedText>
+
+                <Pressable
+                  accessibilityLabel="Edit profile name"
+                  onPress={() =>
+                    setIsEditingName(true)
+                  }
+                  style={styles.nameEditButton}
+                >
+                  <SymbolView
+                    name={{
+                      ios: 'pencil',
+                      android: 'edit',
+                      web: 'edit',
+                    }}
+                    size={15}
+                    tintColor="#745a38"
+                  />
+                </Pressable>
+
+              </View>
+            )}
+
+            <ThemedText
+              style={styles.profileDetail}
+            >
+              Member since Oct 2023
+            </ThemedText>
+
+          </View>
+
+          {/* ================================================= */}
+          {/* STYLE PREFERENCES */}
+          {/* ================================================= */}
+
+          <SectionTitle
+            eyebrow="PERSONAL EDIT"
+            title="Style Preferences & DNA"
+          />
+
+          <View style={styles.panel}>
+
+            <View style={styles.panelHeader}>
+
+              <ThemedText
+                style={styles.panelTitle}
+              >
+                Preferred Aesthetics & Moods
+              </ThemedText>
+
+              <Pressable
+                onPress={() =>
+                  setIsEditingMoods(
+                    (current) => !current
+                  )
+                }
+              >
+                <ThemedText
+                  style={styles.editText}
+                >
+                  {isEditingMoods
+                    ? 'DONE'
+                    : 'EDIT'}
+                </ThemedText>
+              </Pressable>
+
+            </View>
+
+            {isEditingMoods ? (
+              <View style={styles.addMoodRow}>
+
+                <TextInput
+                  value={newMood}
+                  onChangeText={setNewMood}
+                  onSubmitEditing={addMood}
+                  placeholder="Type a new mood"
+                  placeholderTextColor="#747878"
+                  returnKeyType="done"
+                  style={styles.moodInput}
+                />
+
+                <Pressable
+                  accessibilityLabel="Add mood"
+                  onPress={addMood}
+                  style={styles.addMoodButton}
+                >
+                  <SymbolView
+                    name={{
+                      ios: 'plus',
+                      android: 'add',
+                      web: 'add',
+                    }}
+                    size={17}
+                    tintColor="#ffddb4"
+                  />
+                </Pressable>
+
+              </View>
+            ) : null}
+
+            <View style={styles.moodWrap}>
+
+              {availableMoods.map((mood) => {
+
+                const selected =
+                  selectedMoods.includes(mood);
+
+                return (
+                  <Pressable
+                    key={mood}
+                    onPress={() =>
+                      toggleMood(mood)
+                    }
+                    style={[
+                      styles.mood,
+                      selected
+                        ? styles.moodSelected
+                        : styles.moodUnselected,
+                    ]}
+                  >
+
+                    <SymbolView
+                      name={{
+                        ios:
+                          isEditingMoods &&
+                          selected
+                            ? 'minus'
+                            : selected
+                            ? 'checkmark'
+                            : 'plus',
+
+                        android:
+                          isEditingMoods &&
+                          selected
+                            ? 'remove'
+                            : selected
+                            ? 'check'
+                            : 'add',
+
+                        web:
+                          isEditingMoods &&
+                          selected
+                            ? 'remove'
+                            : selected
+                            ? 'check'
+                            : 'add',
+                      }}
+                      size={13}
+                      tintColor={
+                        selected
+                          ? '#ffddb4'
+                          : '#747878'
+                      }
+                    />
+
+                    <ThemedText
+                      style={[
+                        styles.moodText,
+                        selected &&
+                          styles.moodTextSelected,
+                      ]}
+                    >
+                      {mood}
+                    </ThemedText>
+
+                  </Pressable>
+                );
+              })}
+
+            </View>
+          </View>
+
+          {/* ================================================= */}
+          {/* SILHOUETTES */}
+          {/* ================================================= */}
+
+          <View style={styles.panel}>
+
+            <View style={styles.panelHeader}>
+
+              <ThemedText
+                style={styles.panelTitle}
+              >
+                Preferred Silhouettes & Cuts
+              </ThemedText>
+
+              <ThemedText
+                style={styles.affinity}
+              >
+                TAILORED MATCH
+              </ThemedText>
+
+            </View>
+
+            <View style={styles.cutList}>
+
+              {cuts.map((cut) => (
+                <View
+                  key={cut.label}
+                  style={styles.cutRow}
+                >
+
+                  <View style={styles.cutInfo}>
+
+                    <View style={styles.cutIcon}>
+                      <SymbolView
+                        name={{
+                          ios:
+                            cut.icon ===
+                            'checkroom'
+                              ? 'hanger'
+                              : 'square.grid.2x2',
+                          android: cut.icon,
+                          web: cut.icon,
+                        }}
+                        size={18}
+                        tintColor="#1b1c1a"
+                      />
+                    </View>
+
+                    <View style={styles.cutCopy}>
+
+                      <ThemedText
+                        style={styles.cutLabel}
+                      >
+                        {cut.label}
+                      </ThemedText>
+
+                      <ThemedText
+                        style={styles.cutValue}
+                      >
+                        {cut.value}
+                      </ThemedText>
+
+                    </View>
+
+                  </View>
+
+                  <ThemedText
+                    style={[
+                      styles.cutBadge,
+                      cut.badge ===
+                      'High Affinity'
+                        ? styles.badgeWarm
+                        : styles.badgeNeutral,
+                    ]}
+                  >
+                    {cut.badge}
+                  </ThemedText>
+
+                </View>
+              ))}
+
+            </View>
+          </View>
+
+          {/* ================================================= */}
+          {/* LIFESTYLE */}
+          {/* ================================================= */}
+
+          <View style={styles.panel}>
+
+            <View style={styles.panelHeader}>
+
+              <ThemedText
+                style={styles.panelTitle}
+              >
+                Lifestyle & Occasions Split
+              </ThemedText>
+
+              <ThemedText
+                style={styles.affinity}
+              >
+                WEIGHTED 100%
+              </ThemedText>
+
+            </View>
+
+            <View style={styles.splitBar}>
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 45,
+                    backgroundColor:
+                      '#1b1c1a',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 35,
+                    backgroundColor:
+                      '#745a38',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 20,
+                    backgroundColor:
+                      '#e3c197',
+                  },
+                ]}
+              />
+
+            </View>
+
+            <View style={styles.splitLabels}>
+
+              {[
+                ['45%', 'WORK & CREATIVE'],
+                ['35%', 'WEEKEND & LEISURE'],
+                ['20%', 'EVENING & DINING'],
+              ].map(([percent, label]) => (
+                <View
+                  key={label}
+                  style={styles.splitItem}
+                >
+                  <ThemedText
+                    style={styles.percent}
+                  >
+                    {percent}
+                  </ThemedText>
+
+                  <ThemedText
+                    style={styles.splitLabel}
+                  >
+                    {label}
+                  </ThemedText>
+                </View>
+              ))}
+
+            </View>
+          </View>
+
+          {/* ================================================= */}
+          {/* WARDROBE INTELLIGENCE */}
+          {/* ================================================= */}
+
+          <SectionTitle
+            eyebrow="WARDROBE INTELLIGENCE"
+            title="A considered closet"
+          />
+
+          <View style={styles.metricGrid}>
+
+            <View style={styles.metricCard}>
+
+              <ThemedText
+                style={styles.metricValue}
+              >
+                84
+              </ThemedText>
+
+              <ThemedText
+                style={styles.metricLabel}
+              >
+                ITEMS AUDITED
+              </ThemedText>
+
+            </View>
+
+            <View style={styles.metricCard}>
+
+              <ThemedText
+                style={styles.metricValue}
+              >
+                72%
+              </ThemedText>
+
+              <ThemedText
+                style={styles.metricLabel}
+              >
+                STYLE COHERENCE
+              </ThemedText>
+
+            </View>
+
+          </View>
+
+          {/* ================================================= */}
+          {/* CATEGORY DISTRIBUTION */}
+          {/* ================================================= */}
+
+          <View style={styles.panel}>
+
+            <View style={styles.panelHeader}>
+
+              <ThemedText
+                style={styles.panelTitle}
+              >
+                Category Distribution
+              </ThemedText>
+
+              <ThemedText
+                style={styles.affinity}
+              >
+                84 ITEMS AUDITED
+              </ThemedText>
+
+            </View>
+
+            <View style={styles.splitBar}>
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 38,
+                    backgroundColor:
+                      '#1b1c1a',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 24,
+                    backgroundColor:
+                      '#5a4222',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 18,
+                    backgroundColor:
+                      '#745a38',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 12,
+                    backgroundColor:
+                      '#e3c197',
+                  },
+                ]}
+              />
+
+              <View
+                style={[
+                  styles.splitSegment,
+                  {
+                    flex: 8,
+                    backgroundColor:
+                      '#c4c7c7',
+                  },
+                ]}
+              />
+
+            </View>
+
+            <ThemedText
+              style={styles.distribution}
+            >
+              Tops 38% · Bottoms 24% · Shoes 18%
+              · Outerwear 12% · Acc 8%
+            </ThemedText>
+
+          </View>
+
+          {/* ================================================= */}
+          {/* AI STYLIST */}
+          {/* ================================================= */}
+
+          <SectionTitle
+            eyebrow="AUTONOMOUS DIRECTOR"
+            title="AI Stylist Calibrations"
+          />
+
+          <View style={styles.panel}>
+
+            <ToggleRow
+              title="Weather-Adaptive Guidance"
+              detail="Synced with Paris meteorological feed (19°C)"
+              value={weatherGuidance}
+              onValueChange={
+                setWeatherGuidance
+              }
+            />
+
+            <View style={styles.divider} />
+
+            <ToggleRow
+              title="Seasonal Palette Shift"
+              detail="Transitioning recommendations to Autumn Capsule"
+              value={seasonalPalette}
+              onValueChange={
+                setSeasonalPalette
+              }
+            />
+
+            <View style={styles.divider} />
+
+            <View style={styles.sliderRow}>
+
+              <View>
+
+                <ThemedText
+                  style={styles.rowTitle}
+                >
+                  Director's Influence
+                </ThemedText>
+
+                <ThemedText
+                  style={styles.rowDetail}
+                >
+                  Balance personal taste with
+                  discovery
+                </ThemedText>
+
+              </View>
+
+              <ThemedText
+                style={styles.sliderValue}
+              >
+                80%
+              </ThemedText>
+
+            </View>
+
+            <View style={styles.sliderTrack}>
+              <View style={styles.sliderFill} />
+            </View>
+
+          </View>
+
+          {/* ================================================= */}
+          {/* SETTINGS + LOGOUT */}
+          {/* ================================================= */}
+
+          <View style={styles.settings}>
+
+            {/* Personal details */}
+
+            <Pressable style={styles.settingRow}>
+
+              <SymbolView
+                name={{
+                  ios: 'person.text.rectangle',
+                  android: 'badge',
+                  web: 'badge',
+                }}
+                size={19}
+                tintColor="#745a38"
+              />
+
+              <ThemedText
+                style={styles.settingText}
+              >
+                Personal details
+              </ThemedText>
+
+              <SymbolView
+                name={{
+                  ios: 'chevron.right',
+                  android: 'chevron_right',
+                  web: 'chevron_right',
+                }}
+                size={17}
+                tintColor="#747878"
+              />
+
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            {/* Privacy */}
+
+            <Pressable style={styles.settingRow}>
+
+              <SymbolView
+                name={{
+                  ios: 'lock.shield',
+                  android: 'lock',
+                  web: 'lock',
+                }}
+                size={19}
+                tintColor="#745a38"
+              />
+
+              <ThemedText
+                style={styles.settingText}
+              >
+                Privacy & data
+              </ThemedText>
+
+              <SymbolView
+                name={{
+                  ios: 'chevron.right',
+                  android: 'chevron_right',
+                  web: 'chevron_right',
+                }}
+                size={17}
+                tintColor="#747878"
+              />
+
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            {/* ================================================= */}
+            {/* LOGOUT */}
+            {/* ================================================= */}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{
+                disabled: isLoggingOut,
+                busy: isLoggingOut,
+              }}
+              disabled={isLoggingOut}
+              style={styles.logoutRow}
+              onPress={handleLogout}
+            >
+                <SymbolView
+                  name={{
+                    ios: 'rectangle.portrait.and.arrow.right',
+                    android: 'logout',
+                    web: 'logout',
+                  }}
+                  size={19}
+                  tintColor="#8B3A3A"
+                />
+
+                <ThemedText style={styles.logoutText}>
+                  {isLoggingOut ? 'Logging out...' : 'Log out'}
+                </ThemedText>
+              </Pressable>
+
+          </View>
+
+          {/* ================================================= */}
+          {/* FOOTER */}
+          {/* ================================================= */}
+
+          <View style={styles.colophon}>
+
+            <ThemedText
+              style={styles.colophonText}
+            >
+              STYLESENSE ATELIER EDITION 4.2
+            </ThemedText>
+
+            <ThemedText
+              style={styles.colophonText}
+            >
+              CURATED FOR {profileName.toUpperCase()}
+            </ThemedText>
+
+          </View>
+
+        </ScrollView>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
+// =========================================================
+// STYLES
+// =========================================================
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fbf9f6' }, safeArea: { flex: 1 }, content: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.five, gap: Spacing.three }, topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, brandMark: { flexDirection: 'row', alignItems: 'center', gap: 7 }, brandRule: { width: 20, height: 2, backgroundColor: '#1b1c1a' }, brandText: { fontSize: 12, fontWeight: '800', letterSpacing: 1.5 }, atelierText: { fontSize: 9, color: '#745a38', letterSpacing: 1.5, fontWeight: '700' }, topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },headerWeather: { alignItems: 'flex-end', gap: 2 },
-  weatherText: { color: '#747878', fontSize: 9, fontWeight: '700', letterSpacing: 1.1 },
-  weatherTemperature: { color: '#745a38', fontFamily: Fonts.serif, fontSize: 18 }, profileHeader: { alignItems: 'center', paddingTop: Spacing.three, gap: 7 }, avatar: { width: 104, height: 104, borderRadius: 52, backgroundColor: '#d6c2ac', justifyContent: 'center', alignItems: 'center', borderWidth: 5, borderColor: '#eae8e5' }, avatarText: { fontFamily: Fonts.serif, fontSize: 32, color: '#5a4222' }, nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 }, nameEditButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f0eeea', alignItems: 'center', justifyContent: 'center' }, nameEditor: { alignItems: 'center', gap: 7 }, nameInput: { minWidth: 210, height: 42, paddingHorizontal: 12, borderRadius: 9, backgroundColor: '#f0eeea', color: '#1b1c1a', fontFamily: Fonts.serif, fontSize: 22, textAlign: 'center' }, nameActions: { flexDirection: 'row', alignItems: 'center', gap: 12 }, cancelText: { color: '#747878', fontSize: 9, fontWeight: '700', letterSpacing: 1.1 }, saveButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, backgroundColor: '#1b1c1a' }, saveText: { color: '#ffddb4', fontSize: 9, fontWeight: '700', letterSpacing: 1.1 }, profileName: { fontFamily: Fonts.serif, fontSize: 30, lineHeight: 36, color: '#1b1c1a' }, profileDetail: { color: '#747878', fontSize: 12, marginBottom: Spacing.two }, sectionTitle: { gap: 3, paddingTop: Spacing.two }, eyebrow: { color: '#745a38', fontSize: 10, fontWeight: '700', letterSpacing: 1.7 }, sectionHeading: { fontFamily: Fonts.serif, fontSize: 23, lineHeight: 29, color: '#1b1c1a' }, panel: { backgroundColor: '#f0eeea', borderRadius: 13, padding: Spacing.three, gap: Spacing.two, boxShadow: '0 1px 3px rgba(24, 22, 20, 0.05)' }, panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }, panelTitle: { flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 1.1, textTransform: 'uppercase' }, editText: { color: '#745a38', fontSize: 10, fontWeight: '700', letterSpacing: 1.2 }, affinity: { color: '#745a38', fontSize: 9, fontWeight: '700', letterSpacing: 1 }, addMoodRow: { flexDirection: 'row', gap: 8 }, moodInput: { flex: 1, height: 40, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#fbf9f6', color: '#1b1c1a', fontSize: 13 }, addMoodButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1b1c1a' }, moodWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, mood: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 18 }, moodSelected: { backgroundColor: '#1b1c1a' }, moodUnselected: { backgroundColor: '#e4e2df', borderWidth: 1, borderColor: '#c4c7c7' }, moodText: { fontSize: 12, color: '#444748' }, moodTextSelected: { color: '#ffffff' }, cutList: { gap: 9 }, cutRow: { minHeight: 56, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: 10, borderRadius: 9, backgroundColor: '#fbf9f6', borderWidth: 1, borderColor: '#d9d7d3' }, cutInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 }, cutIcon: { width: 31, height: 31, borderRadius: 16, backgroundColor: '#eae8e5', alignItems: 'center', justifyContent: 'center' }, cutCopy: { flex: 1, gap: 2 }, cutLabel: { color: '#747878', fontSize: 9, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' }, cutValue: { fontSize: 12, fontWeight: '600' }, cutBadge: { fontSize: 8, fontWeight: '700', letterSpacing: 0.5, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 10, overflow: 'hidden' }, badgeWarm: { backgroundColor: '#fedaae', color: '#5a4222' }, badgeNeutral: { backgroundColor: '#e4e2df', color: '#444748' }, splitBar: { height: 9, borderRadius: 5, overflow: 'hidden', flexDirection: 'row', backgroundColor: '#e4e2df' }, splitSegment: { height: '100%' }, splitLabels: { flexDirection: 'row', gap: 8 }, splitItem: { flex: 1, alignItems: 'center', gap: 3 }, percent: { fontSize: 12, fontWeight: '700' }, splitLabel: { fontSize: 8, color: '#747878', textAlign: 'center', letterSpacing: 0.5 }, metricGrid: { flexDirection: 'row', gap: 10 }, metricCard: { flex: 1, backgroundColor: '#1b1c1a', borderRadius: 13, padding: Spacing.three, gap: 4 }, metricValue: { color: '#ffddb4', fontFamily: Fonts.serif, fontSize: 30 }, metricLabel: { color: '#ffffff', fontSize: 9, fontWeight: '700', letterSpacing: 1 }, distribution: { color: '#747878', fontSize: 10, lineHeight: 18 }, toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }, toggleCopy: { flex: 1, gap: 3 }, switch: { width: 48, height: 26, borderRadius: 13, padding: 3, justifyContent: 'center', backgroundColor: '#d8d5d0' }, switchOn: { backgroundColor: '#1b1c1a' }, switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fbf9f6' }, switchThumbOn: { alignSelf: 'flex-end' }, rowTitle: { fontSize: 14, fontWeight: '600' }, rowDetail: { color: '#747878', fontSize: 11, lineHeight: 16 }, divider: { height: 1, backgroundColor: '#d9d7d3' }, sliderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, sliderValue: { fontSize: 13, fontWeight: '700', color: '#745a38' }, sliderTrack: { height: 5, backgroundColor: '#d8d5d0', borderRadius: 3, overflow: 'hidden' }, sliderFill: { width: '80%', height: '100%', backgroundColor: '#745a38' }, settings: { backgroundColor: '#f0eeea', borderRadius: 13, paddingHorizontal: Spacing.three, boxShadow: '0 1px 3px rgba(24, 22, 20, 0.05)' }, settingRow: { height: 55, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingText: { flex: 1, fontSize: 14, fontWeight: '600' }, colophon: { alignItems: 'center', gap: 4, paddingVertical: Spacing.three, opacity: 0.6 }, colophonText: { color: '#747878', fontSize: 8, letterSpacing: 1.4, fontWeight: '700' },
+  container: {
+    flex: 1,
+    backgroundColor: '#fbf9f6',
+  },
+
+  safeArea: {
+    flex: 1,
+  },
+
+  content: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom:
+      BottomTabInset + Spacing.five,
+    gap: Spacing.three,
+  },
+
+  // -------------------------------------------------------
+  // HEADER
+  // -------------------------------------------------------
+
+  header: {
+    gap: 5,
+  },
+
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+
+  styleSense: {
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: '#745a38',
+  },
+
+  profileTitle: {
+    fontFamily: Fonts.serif,
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+
+  subtitle: {
+    color: '#747878',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  headerWeather: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+
+  weatherText: {
+    color: '#747878',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+  },
+
+  weatherTemperature: {
+    color: '#745a38',
+    fontFamily: Fonts.serif,
+    fontSize: 18,
+  },
+
+  // -------------------------------------------------------
+  // PROFILE
+  // -------------------------------------------------------
+
+  profileHeader: {
+    alignItems: 'center',
+    paddingTop: Spacing.three,
+    gap: 7,
+  },
+
+  avatar: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: '#d6c2ac',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 5,
+    borderColor: '#eae8e5',
+  },
+
+  avatarText: {
+    fontFamily: Fonts.serif,
+    fontSize: 32,
+    color: '#5a4222',
+  },
+
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  nameEditButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f0eeea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  nameEditor: {
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  nameInput: {
+    minWidth: 210,
+    height: 42,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    backgroundColor: '#f0eeea',
+    color: '#1b1c1a',
+    fontFamily: Fonts.serif,
+    fontSize: 22,
+    textAlign: 'center',
+  },
+
+  nameActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  cancelText: {
+    color: '#747878',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+  },
+
+  saveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: '#1b1c1a',
+  },
+
+  saveText: {
+    color: '#b57c35',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+  },
+
+  profileName: {
+    fontFamily: Fonts.serif,
+    fontSize: 30,
+    lineHeight: 36,
+    color: '#1b1c1a',
+  },
+
+  profileDetail: {
+    color: '#747878',
+    fontSize: 12,
+    marginBottom: Spacing.two,
+  },
+
+  // -------------------------------------------------------
+  // SECTION TITLES
+  // -------------------------------------------------------
+
+  sectionTitle: {
+    gap: 3,
+    paddingTop: Spacing.two,
+  },
+
+  eyebrow: {
+    color: '#745a38',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.7,
+  },
+
+  sectionHeading: {
+    fontFamily: Fonts.serif,
+    fontSize: 23,
+    lineHeight: 29,
+    color: '#1b1c1a',
+  },
+
+  // -------------------------------------------------------
+  // PANELS
+  // -------------------------------------------------------
+
+  panel: {
+    backgroundColor: '#f0eeea',
+    borderRadius: 13,
+    padding: Spacing.three,
+    gap: Spacing.two,
+
+    boxShadow:
+      '0 1px 3px rgba(24, 22, 20, 0.05)',
+  },
+
+  panelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  panelTitle: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+
+  editText: {
+    color: '#745a38',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+
+  affinity: {
+    color: '#745a38',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  // -------------------------------------------------------
+  // MOODS
+  // -------------------------------------------------------
+
+  addMoodRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  moodInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#cc9543',
+    color: '#1b1c1a',
+    fontSize: 13,
+  },
+
+  addMoodButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1b1c1a',
+  },
+
+  moodWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
+  mood: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+
+  moodSelected: {
+    backgroundColor: '#1b1c1a',
+  },
+
+  moodUnselected: {
+    backgroundColor: '#e4e2df',
+    borderWidth: 1,
+    borderColor: '#c4c7c7',
+  },
+
+  moodText: {
+    fontSize: 12,
+    color: '#444748',
+  },
+
+  moodTextSelected: {
+    color: '#ffffff',
+  },
+
+  // -------------------------------------------------------
+  // CUTS
+  // -------------------------------------------------------
+
+  cutList: {
+    gap: 9,
+  },
+
+  cutRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 9,
+    backgroundColor: '#fbf9f6',
+    borderWidth: 1,
+    borderColor: '#d9d7d3',
+  },
+
+  cutInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+
+  cutIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 16,
+    backgroundColor: '#eae8e5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cutCopy: {
+    flex: 1,
+    gap: 2,
+  },
+
+  cutLabel: {
+    color: '#747878',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+
+  cutValue: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  cutBadge: {
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+
+  badgeWarm: {
+    backgroundColor: '#fedaae',
+    color: '#5a4222',
+  },
+
+  badgeNeutral: {
+    backgroundColor: '#e4e2df',
+    color: '#444748',
+  },
+
+  // -------------------------------------------------------
+  // SPLIT
+  // -------------------------------------------------------
+
+  splitBar: {
+    height: 9,
+    borderRadius: 5,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    backgroundColor: '#e4e2df',
+  },
+
+  splitSegment: {
+    height: '100%',
+  },
+
+  splitLabels: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  splitItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+
+  percent: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  splitLabel: {
+    fontSize: 8,
+    color: '#747878',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+
+  // -------------------------------------------------------
+  // METRICS
+  // -------------------------------------------------------
+
+  metricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  metricCard: {
+    flex: 1,
+    backgroundColor: '#1b1c1a',
+    borderRadius: 13,
+    padding: Spacing.three,
+    gap: 4,
+  },
+
+  metricValue: {
+    color: '#ffddb4',
+    fontFamily: Fonts.serif,
+    fontSize: 30,
+  },
+
+  metricLabel: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  distribution: {
+    color: '#747878',
+    fontSize: 10,
+    lineHeight: 18,
+  },
+
+  // -------------------------------------------------------
+  // TOGGLES
+  // -------------------------------------------------------
+
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  toggleCopy: {
+    flex: 1,
+    gap: 3,
+  },
+
+  switch: {
+    width: 48,
+    height: 26,
+    borderRadius: 13,
+    padding: 3,
+    justifyContent: 'center',
+    backgroundColor: '#d8d5d0',
+  },
+
+  switchOn: {
+    backgroundColor: '#1b1c1a',
+  },
+
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fbf9f6',
+  },
+
+  switchThumbOn: {
+    alignSelf: 'flex-end',
+  },
+
+  rowTitle: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#1b1c1a',
+},
+  rowDetail: {
+    color: '#5f625f',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#d9d7d3',
+  },
+
+  sliderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  sliderValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#745a38',
+  },
+
+  sliderTrack: {
+    height: 5,
+    backgroundColor: '#d8d5d0',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+
+  sliderFill: {
+    width: '80%',
+    height: '100%',
+    backgroundColor: '#745a38',
+  },
+
+  // -------------------------------------------------------
+  // SETTINGS
+  // -------------------------------------------------------
+
+  settings: {
+    backgroundColor: '#f3e2df',
+    borderRadius: 13,
+    paddingHorizontal: Spacing.three,
+
+    boxShadow:
+      '0 1px 3px rgba(24, 22, 20, 0.05)',
+  },
+
+  settingRow: {
+    height: 55,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  settingText: {
+  flex: 1,
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#1b1c1a',
+},
+
+  // -------------------------------------------------------
+  // LOGOUT
+  // -------------------------------------------------------
+
+  logoutRow: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  logoutIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3e2df',
+  },
+
+  logoutText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9b4d45',
+  },
+
+  // -------------------------------------------------------
+  // FOOTER
+  // -------------------------------------------------------
+
+  colophon: {
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.three,
+    opacity: 0.6,
+  },
+
+  colophonText: {
+    color: '#708383',
+    fontSize: 8,
+    letterSpacing: 1.4,
+    fontWeight: '700',
+  },
 });

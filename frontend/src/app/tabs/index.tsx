@@ -17,6 +17,10 @@ import pants2 from '../../assets/clothes/pants2.png';
 import whiteSneakers from '../../assets/clothes/whiteSneakers.png';
 import jeans from '../../assets/clothes/jeans.jpg';
 import offshoulders from '../../assets/clothes/offshoulders.jpg';
+import shirt from '../../assets/clothes/shirt.png';
+import pants from '../../assets/clothes/pants.png';
+import blouse from '../../assets/clothes/outfit1.png';
+import tailoredPants from '../../assets/clothes/outfit2.png';
 
 
 
@@ -25,59 +29,95 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 
 const presets = [
-  'Today\'s Weather',
-  'Dinner in Brera',
-  'Casual Meeting',
-  'Weekend Gallery',
+  {
+    label: 'Today\'s Weather',
+    emoji: '☀',
+    looks: [
+      {
+        title: 'Weather Ready',
+        note: 'A comfortable everyday combination for a clear day in the city.',
+        occasion: 'EVERYDAY · RELAXED',
+        items: { top: shirt2, bottom: pants2, shoes: whiteSneakers },
+      },
+      {
+        title: 'Soft Layers',
+        note: 'A light blouse and tailored trousers keep the day feeling effortless.',
+        occasion: 'DAYTIME · POLISHED',
+        items: { top: blouse, bottom: pants2, shoes: whiteSneakers },
+      },
+    ],
+  },
+  {
+    label: 'Dinner in Brera',
+    emoji: '◌',
+    looks: [
+      {
+        title: 'Brera After Dark',
+        note: 'A statement off-shoulder top paired with relaxed denim for dinner.',
+        occasion: 'EVENING · DINNER',
+        items: { top: offshoulders, bottom: jeans, shoes: whiteSneakers },
+      },
+      {
+        title: 'Evening Minimal',
+        note: 'A refined dark top and denim make an easy, understated dinner look.',
+        occasion: 'EVENING · SMART CASUAL',
+        items: { top: shirt2, bottom: jeans, shoes: whiteSneakers },
+      },
+    ],
+  },
+  {
+    label: 'Casual Meeting',
+    emoji: '▣',
+    looks: [
+      {
+        title: 'Modern Atelier',
+        note: 'A relaxed everyday look with a clean, effortless silhouette.',
+        occasion: 'WORK · SMART CASUAL',
+        items: { top: blouse, bottom: tailoredPants, shoes: whiteSneakers },
+      },
+      {
+        title: 'Creative Office',
+        note: 'A simple dark top with tailored trousers feels polished but comfortable.',
+        occasion: 'WORK · CREATIVE',
+        items: { top: shirt2, bottom: pants2, shoes: whiteSneakers },
+      },
+    ],
+  },
+  {
+    label: 'Weekend Gallery',
+    emoji: '✦',
+    looks: [
+      {
+        title: 'Weekend Edit',
+        note: 'An easy combination designed for a relaxed weekend mood.',
+        occasion: 'WEEKEND · CASUAL',
+        items: { top: shirt, bottom: pants, shoes: whiteSneakers },
+      },
+      {
+        title: 'Gallery Stroll',
+        note: 'A soft statement top and relaxed denim make a comfortable gallery look.',
+        occasion: 'WEEKEND · CULTURE',
+        items: { top: offshoulders, bottom: jeans, shoes: whiteSneakers },
+      },
+    ],
+  },
 ];
 
 const occasions = ['Work', 'Weekend', 'Evening'];
 
-/*
- * TEMPORARY MOCK DATA
- *
- * These URLs represent the individual transparent clothing
- * images that will eventually come from your backend.
- *
- * Replace these URLs with your actual image URLs.
- */
-const looks = [
-  {
-    title: 'Modern Atelier',
-    note: 'A relaxed everyday look with a clean, effortless silhouette.',
-    occasion: 'WORK · SMART CASUAL',
-
-    items: {
-      top: shirt2,
-      bottom: pants2,
-      shoes: whiteSneakers,
-    },
-  },
-
-  // {
-  //   title: 'Weekend Edit',
-  //   note: 'An easy combination designed for a relaxed weekend mood.',
-  //   occasion: 'WEEKEND · CASUAL',
-
-  //   items: {
-  //     top: 'https://res.cloudinary.com/cipdrmjm/image/upload/v1789964350/closet_wardrobe/th867rctfqknjxy1l1m6.png',
-  //     bottom: 'https://res.cloudinary.com/cipdrmjm/image/upload/v1789984654/closet_wardrobe/w0ggbtoqaya4l850tqfh.png',
-  //     shoes: 'https://res.cloudinary.com/cipdrmjm/image/upload/v1789964461/closet_wardrobe/dq7dau60f6sysqqgh6ec.png',
-  //   },
-  // },
-] as const;
-
 export default function StylistScreen() {
   const [occasion, setOccasion] = useState('Work');
+  const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
   const [lookIndex, setLookIndex] = useState(0);
   const [prompt, setPrompt] = useState('');
   const [isSaved, setIsSaved] = useState(false);
   const [isWorn, setIsWorn] = useState(false);
   const router = useRouter();
-  const look = looks[lookIndex];
+  const selectedPreset = presets[selectedPresetIndex];
+  const look = selectedPreset.looks[lookIndex];
 
   const shuffleLook = () => {
-    setLookIndex((current) => (current + 1) % looks.length);
+    setLookIndex((current) => (current + 1) % selectedPreset.looks.length);
     setIsWorn(false);
     setIsSaved(false);
   };
@@ -141,24 +181,30 @@ export default function StylistScreen() {
           >
             {presets.map((preset, index) => (
               <Pressable
-                key={preset}
-                onPress={() => setPrompt(`Curate: ${preset}`)}
+                key={preset.label}
+                onPress={() => {
+                  setSelectedPresetIndex(index);
+                  setLookIndex(0);
+                  setPrompt(`Curate: ${preset.label}`);
+                  setIsWorn(false);
+                  setIsSaved(false);
+                }}
                 style={[
                   styles.preset,
-                  index === 0 && styles.presetSelected,
+                  index === selectedPresetIndex && styles.presetSelected,
                 ]}
               >
                 <ThemedText style={styles.presetEmoji}>
-                  {['☀', '◌', '▣', '✦'][index]}
+                  {preset.emoji}
                 </ThemedText>
 
                 <ThemedText
                   style={[
                     styles.presetText,
-                    index === 0 && styles.presetTextSelected,
+                    index === selectedPresetIndex && styles.presetTextSelected,
                   ]}
                 >
-                  {preset}
+                  {preset.label}
                 </ThemedText>
               </Pressable>
             ))}
@@ -664,7 +710,7 @@ const styles = StyleSheet.create({
    */
   outfitCanvas: {
     width: '100%',
-    height: 500,
+    height: 410,
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#f4f1ec',

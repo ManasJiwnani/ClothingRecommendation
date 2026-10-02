@@ -3,6 +3,8 @@ import {
   DefaultTheme,
   ThemeProvider,
   Stack,
+  router,
+  type Href,
 } from "expo-router";
 
 import { useEffect, useState } from "react";
@@ -16,10 +18,20 @@ export default function RootLayout() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const { error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
         if (error) {
           console.error("SESSION ERROR:", error);
+          setLoading(false);
+          return;
+        }
+
+        // User is already logged in
+        if (session) {
+          router.replace("/(tabs)" as Href);
         }
       } catch (error) {
         console.error("AUTH CHECK ERROR:", error);
@@ -29,6 +41,22 @@ export default function RootLayout() {
     };
 
     checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("AUTH EVENT:", event);
+
+        if (event === "SIGNED_OUT") {
+          router.replace("/auth/login");
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (loading) {

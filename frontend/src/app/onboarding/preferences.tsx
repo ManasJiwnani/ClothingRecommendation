@@ -278,7 +278,7 @@ export default function PreferencesScreen() {
         router.replace("/auth/login");
         return;
       }
-
+      
       const { error } = await supabase
         .from("user_preferences")
         .upsert(
@@ -334,6 +334,28 @@ export default function PreferencesScreen() {
 
         return;
       }
+      const { error: profileError } = await supabase
+  .from("user_profiles")
+  .upsert(
+    {
+      id: user.id,
+      onboarding_completed: true,
+    },
+    {
+      onConflict: "id",
+    }
+  );
+
+if (profileError) {
+  console.error("PROFILE SAVE ERROR:", profileError);
+
+  Alert.alert(
+    "Profile Error",
+    profileError.message
+  );
+
+  return;
+}
 
       console.log("PREFERENCES SAVED");
 
@@ -352,6 +374,7 @@ export default function PreferencesScreen() {
     } finally {
       setSaving(false);
     }
+    
   };
 
   // =====================================================

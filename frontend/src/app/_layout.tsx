@@ -4,7 +4,6 @@ import {
   ThemeProvider,
   Stack,
   router,
-  type Href,
 } from "expo-router";
 
 import { useEffect, useState } from "react";
@@ -16,6 +15,8 @@ export default function RootLayout() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const checkSession = async () => {
       try {
         const {
@@ -25,39 +26,148 @@ export default function RootLayout() {
 
         if (error) {
           console.error("SESSION ERROR:", error);
-          setLoading(false);
+
+          if (mounted) {
+            setLoading(false);
+          }
+
           return;
         }
 
-        // User is already logged in
-        if (session) {
-          router.replace("/(tabs)" as Href);
+        console.log(
+          "INITIAL SESSION:",
+          session?.user?.email ?? "No session"
+        );
+
+        /*
+         * --------------------------------------------------
+         * NO USER LOGGED IN
+         * --------------------------------------------------
+         */
+
+        if (!session) {
+          if (mounted) {
+            setLoading(false);
+          }
+
+          return;
         }
+
+        /*
+         * --------------------------------------------------
+         * USER IS LOGGED IN
+         * --------------------------------------------------
+         *
+         * Check whether onboarding/preferences are completed.
+         */
+
+        const { data: preferences, error: preferenceError } =
+          await supabase
+            .from("user_preferences")
+            .select("onboarding_completed")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+        if (preferenceError) {
+          console.error(
+            "PREFERENCE CHECK ERROR:",
+            preferenceError
+          );
+
+          /*
+           * If the preference row doesn't exist,
+           * send the user to onboarding.
+           */
+          if (mounted) {
+            setLoading(false);
+          }
+
+          return;
+        }
+
+        /*
+         * --------------------------------------------------
+         * PREFERENCES COMPLETED
+         * --------------------------------------------------
+         */
+
+        if (preferences?.onboarding_completed === true) {
+          console.log(
+            "Preferences completed → Tabs"
+          );
+
+          router.replace("/tabs");
+        }
+
+        /*
+         * --------------------------------------------------
+         * PREFERENCES NOT COMPLETED
+         * --------------------------------------------------
+         */
+
+        else {
+          console.log(
+            "Preferences not completed → Preferences"
+          );
+
+          router.replace("/onboarding/preferences");
+        }
+
       } catch (error) {
-        console.error("AUTH CHECK ERROR:", error);
+        console.error(
+          "AUTH CHECK ERROR:",
+          error
+        );
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     checkSession();
 
+    /*
+     * --------------------------------------------------
+     * AUTH STATE LISTENER
+     * --------------------------------------------------
+     */
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log("AUTH EVENT:", event);
+        console.log(
+          "AUTH EVENT:",
+          event
+        );
 
+        /*
+         * User logged out
+         */
         if (event === "SIGNED_OUT") {
           router.replace("/auth/login");
+        }
+
+        /*
+         * User just logged in
+         */
+        if (event === "SIGNED_IN" && session) {
+          checkSession();
         }
       }
     );
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
+
+  /*
+   * Don't render the navigation stack
+   * until authentication is checked.
+   */
 
   if (loading) {
     return null;

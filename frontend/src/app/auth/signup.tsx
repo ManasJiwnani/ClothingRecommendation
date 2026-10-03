@@ -67,7 +67,7 @@ export default function SignupScreen() {
       } else {
         // If email confirmation is disabled,
         // user may already have a session.
-        router.replace("/preferences");
+        router.replace("/onboarding/preferences");
       }
     } catch (error: any) {
       console.error(error);

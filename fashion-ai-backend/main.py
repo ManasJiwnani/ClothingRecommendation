@@ -47,6 +47,7 @@ from services.supabase_service import (
     prepare_clothing_data,
     like_outfit,
     get_liked_outfits,
+    get_user_preferences,
 )
 
 
@@ -351,6 +352,70 @@ async def recommend(
         print("User:", request.user_id)
         print("Intent:", intent)
 
+        # --------------------------------------------------
+        # 2. FETCH USER PREFERENCES
+        # --------------------------------------------------
+
+        preferences = get_user_preferences(
+            request.user_id
+        )
+
+        print("User Preferences:", preferences)
+
+        # Default empty preferences
+        if not preferences:
+            preferences = {}
+
+        # --------------------------------------------------
+        # 3. ADD USER PREFERENCES TO INTENT
+        # --------------------------------------------------
+
+        intent["user_preferences"] = {
+            "gender": preferences.get("gender"),
+
+            "skin_tone": preferences.get(
+                "skin_tone"
+            ),
+
+            "height": preferences.get(
+                "height"
+            ),
+
+            "weight": preferences.get(
+                "weight"
+            ),
+
+            "body_type": preferences.get(
+                "body_type"
+            ),
+
+            "style_preferences": preferences.get(
+                "style_preferences",
+                []
+            ),
+
+            "color_palette": preferences.get(
+                "color_palette",
+                []
+            ),
+
+            "pattern_preferences": preferences.get(
+                "pattern_preferences",
+                []
+            ),
+        }
+        print("\n========== FINAL INTENT ==========")
+        print(intent)
+        print("==================================\n")
+        print(
+            "Preferences added to intent:",
+            intent["user_preferences"]
+        )
+
+        # --------------------------------------------------
+        # 4. PREPARE LANGGRAPH STATE
+        # --------------------------------------------------
+
         initial_state = {
 
             "user_id": request.user_id,
@@ -358,6 +423,8 @@ async def recommend(
             "query_embedding": request.query_embedding,
 
             "intent": intent,
+
+            "preferences": preferences,
 
             "latitude": request.latitude,
 
@@ -369,7 +436,7 @@ async def recommend(
         }
 
         # --------------------------------------------------
-        # 2. RUN LANGGRAPH WORKFLOW
+        # 5. RUN LANGGRAPH WORKFLOW
         # --------------------------------------------------
 
         result = await recommendation_graph.ainvoke(
@@ -377,7 +444,7 @@ async def recommend(
         )
 
         # --------------------------------------------------
-        # 3. RETURN RESPONSE
+        # 6. RETURN RESPONSE
         # --------------------------------------------------
 
         return {

@@ -351,6 +351,125 @@ def score_color_preference(items, intent):
 
     return score
 
+def preference_score(outfit, intent):
+
+    preferences = intent.get(
+        "user_preferences",
+        {}
+    )
+
+    if not preferences:
+        return 0
+
+    score = 0
+
+    items = get_outfit_items(outfit)
+
+    # --------------------------------------------------
+    # STYLE PREFERENCE
+    # --------------------------------------------------
+
+    preferred_styles = {
+        style.lower().strip()
+        for style in preferences.get(
+            "style_preferences",
+            []
+        )
+        if style
+    }
+
+    if preferred_styles:
+
+        for item in items:
+
+            item_style = item.get("style")
+
+            if not item_style:
+                continue
+
+            item_style = item_style.lower().strip()
+
+            if item_style in preferred_styles:
+                score += 8
+
+    # --------------------------------------------------
+    # COLOR PREFERENCE
+    # --------------------------------------------------
+
+    preferred_colors = {
+        color.lower().strip()
+        for color in preferences.get(
+            "color_palette",
+            []
+        )
+        if color
+    }
+
+    if preferred_colors:
+
+        for item in items:
+
+            item_color = item.get("color")
+
+            if not item_color:
+                continue
+
+            item_color = item_color.lower().strip()
+
+            if item_color in preferred_colors:
+                score += 5
+
+    # --------------------------------------------------
+    # PATTERN PREFERENCE
+    # --------------------------------------------------
+
+    preferred_patterns = {
+        pattern.lower().strip()
+        for pattern in preferences.get(
+            "pattern_preferences",
+            []
+        )
+        if pattern
+    }
+
+    if preferred_patterns:
+
+        for item in items:
+
+            item_pattern = item.get("pattern")
+
+            if not item_pattern:
+                continue
+
+            item_pattern = item_pattern.lower().strip()
+
+            if item_pattern in preferred_patterns:
+                score += 5
+
+    # --------------------------------------------------
+    # BODY TYPE
+    # --------------------------------------------------
+    # Only apply this if your outfit builder/ranker
+    # actually generates body_type information.
+
+    preferred_body_type = preferences.get(
+        "body_type"
+    )
+
+    outfit_body_type = outfit.get(
+        "body_type"
+    )
+
+    if (
+        preferred_body_type
+        and outfit_body_type
+        and preferred_body_type.lower().strip()
+        == outfit_body_type.lower().strip()
+    ):
+        score += 5
+
+    return score
+
 # OUTFIT SCORING
 def score_outfit(outfit, intent, weather=None):
     items = get_outfit_items(
@@ -400,6 +519,9 @@ def score_outfit(outfit, intent, weather=None):
         intent
     )
 
+    # 7. User preferences
+    total_score += preference_score(outfit, intent)
+
     if weather:
         for item in items:
             total_score += item_weather_score(item, weather)
@@ -407,4 +529,4 @@ def score_outfit(outfit, intent, weather=None):
     return round(total_score, 2)
 
 
-    
+ 

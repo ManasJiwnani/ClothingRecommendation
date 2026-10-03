@@ -3,6 +3,8 @@ import ssl
 import certifi
 import httpx
 
+# cspell:ignore SUPABASE, supabase, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_ROLE_KEY, truststore
+
 # # --------------------------------------------------
 # # SSL / CERTIFICATE CONFIGURATION
 # # --------------------------------------------------
@@ -11,6 +13,9 @@ CERT_PATH = certifi.where()
 
 os.environ["SSL_CERT_FILE"] = CERT_PATH
 os.environ["REQUESTS_CA_BUNDLE"] = CERT_PATH
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 # Optional: make Python's default SSL context use certifi
 try:
@@ -37,6 +42,29 @@ from config import settings
 
 _supabase = None
 
+
+def _resolve_supabase_config():
+    url = getattr(settings, "SUPABASE_URL", None) or SUPABASE_URL
+    key = (
+        getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None)
+        or getattr(settings, "SUPABASE_KEY", None)
+        or SUPABASE_KEY
+    )
+    return url, key
+
+
+def get_user_preferences(user_id: str):
+
+    response = (
+        get_supabase_client()
+        .table("user_preferences")
+        .select("*")
+        .eq("id", user_id)
+        .maybe_single()
+        .execute()
+    )
+
+    return response.data
 
 def _build_httpx_client() -> httpx.Client:
     ssl_context = ssl.create_default_context(cafile=CERT_PATH)

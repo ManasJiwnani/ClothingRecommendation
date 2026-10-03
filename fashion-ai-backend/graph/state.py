@@ -12,7 +12,9 @@ class RecommendationState(TypedDict, total=False):
     query_embedding: list[float]
 
     intent: dict[str, Any]
-
+    
+    preferences: dict[str, Any]
+    
     latitude: float
     longitude: float
 
@@ -45,6 +47,8 @@ class RecommendationState(TypedDict, total=False):
 
     ranked_outfits: list[dict[str, Any]]
 
+
+    preferences: dict[str, Any]
     # -----------------------------
     # FINAL RESULT
     # -----------------------------

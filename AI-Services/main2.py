@@ -31,6 +31,8 @@ from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
 
+from virtual_tryon_flow import VirtualTryOnRequest, create_virtual_try_on
+
 
 
 # ============================================================
@@ -57,21 +59,6 @@ except Exception as e:
 
 
 
-try:
-
-    import certifi
-
-
-
-    os.environ["SSL_CERT_FILE"] = certifi.where()
-
-    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
-
-    print(f"Using certifi certificates: {certifi.where()}")
-
-except Exception as e:
-
-    print(f"Certifi setup failed: {e}")
 
 
 
@@ -269,37 +256,30 @@ SUPPORTED_EXTENSIONS = {
 # ============================================================
 
 
-
 app = FastAPI(
 
     title="CLOSET AI/Vision Service",
-
     description=(
-
         "AI/Vision service for clothing analysis, "
-
         "metadata generation, embeddings and outfit processing."
-
     ),
-
     version="2.0.0",
-
 )
 
-
-
 app.add_middleware(
-
     CORSMiddleware,
-
     allow_origins=["*"],
-
     allow_credentials=True,
-
     allow_methods=["*"],
-
     allow_headers=["*"],
+)
 
+app.add_api_route(
+    "/virtual-try-on",
+    create_virtual_try_on,
+    methods=["POST"],
+    response_model=dict[str, str],
+    tags=["virtual try-on"],
 )
 
 

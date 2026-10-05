@@ -14,7 +14,7 @@ import os
 
 # os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 # os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
-
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException ,Query
 from typing import Optional
 # ==================================================
@@ -85,10 +85,21 @@ from services.layer_service import (
 # FASTAPI APP
 # ==================================================
 
-app = FastAPI(
-    title="AI Fashion Backend",
-    description="AI-powered wardrobe recommendation API",
-    version="1.0.0",
+# app = FastAPI(
+#     title="AI Fashion Backend",
+#     description="AI-powered wardrobe recommendation API",
+#     version="1.0.0",
+# )
+
+
+app = FastAPI(title="AI Fashion Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

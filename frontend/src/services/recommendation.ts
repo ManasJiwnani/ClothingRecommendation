@@ -1,4 +1,4 @@
-const API_URL = 'http://10.65.233.132:8000';
+const API_URL = 'http://10.25.230.248:8000';
 
 export type RecommendationPreset =
   | 'weather'

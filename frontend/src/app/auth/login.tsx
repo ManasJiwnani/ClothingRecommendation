@@ -92,19 +92,26 @@ const handleGoogleLogin = async () => {
         ? `${window.location.origin}/auth/callback`
         : "closet://auth/callback";
 
-    console.log("GOOGLE REDIRECT:", redirectUrl);
+    console.log(
+      "GOOGLE REDIRECT:",
+      redirectUrl
+    );
 
     const { data, error } =
       await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: Platform.OS !== "web",
+          skipBrowserRedirect:
+            Platform.OS !== "web",
         },
       });
 
     if (error) {
-      console.error("GOOGLE OAUTH ERROR:", error);
+      console.error(
+        "GOOGLE OAUTH ERROR:",
+        error
+      );
 
       Alert.alert(
         "Google Login Failed",
@@ -114,13 +121,18 @@ const handleGoogleLogin = async () => {
       return;
     }
 
+    // ================================
     // WEB
-    // Supabase automatically redirects browser to Google.
+    // ================================
+
     if (Platform.OS === "web") {
       return;
     }
 
+    // ================================
     // MOBILE
+    // ================================
+
     if (data?.url) {
       const result =
         await WebBrowser.openAuthSessionAsync(
@@ -132,8 +144,108 @@ const handleGoogleLogin = async () => {
         "Google Auth Result:",
         result
       );
-    }
 
+      // Give Supabase a moment to
+      // process the callback/session
+      await new Promise(
+        (resolve) =>
+          setTimeout(resolve, 500)
+      );
+
+      // Get authenticated user
+      const {
+        data: {
+          user,
+        },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        Alert.alert(
+          "Login Error",
+          "Could not retrieve your Google account."
+        );
+
+        return;
+      }
+
+      console.log(
+        "GOOGLE USER:",
+        user.id
+      );
+
+      // ================================
+      // CHECK USER PROFILE
+      // ================================
+
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
+        .from("user_profiles")
+        .select(
+          "id, name, onboarding_completed"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error(
+          "PROFILE CHECK ERROR:",
+          profileError
+        );
+
+        Alert.alert(
+          "Error",
+          "Could not load your profile."
+        );
+
+        return;
+      }
+
+      // ================================
+      // NEW GOOGLE USER
+      // ================================
+
+      if (!profile) {
+        router.replace(
+          "/onboarding/name"
+        );
+
+        return;
+      }
+
+      // ================================
+      // PROFILE EXISTS BUT NO NAME
+      // ================================
+
+      if (!profile.name) {
+        router.replace(
+          "/onboarding/name"
+        );
+
+        return;
+      }
+
+      // ================================
+      // ONBOARDING COMPLETE
+      // ================================
+
+      if (
+        profile.onboarding_completed === true
+      ) {
+        router.replace("/tabs");
+        return;
+      }
+
+      // ================================
+      // NAME EXISTS BUT ONBOARDING
+      // NOT COMPLETE
+      // ================================
+
+      router.replace(
+        "/onboarding/preferences"
+      );
+    }
   } catch (error: any) {
     console.error(
       "GOOGLE LOGIN ERROR:",

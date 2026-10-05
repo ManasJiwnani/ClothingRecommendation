@@ -335,16 +335,16 @@ export default function PreferencesScreen() {
         return;
       }
       const { error: profileError } = await supabase
-  .from("user_profiles")
-  .upsert(
-    {
-      id: user.id,
-      onboarding_completed: true,
-    },
-    {
-      onConflict: "id",
-    }
-  );
+        .from("user_profiles")
+        .upsert(
+          {
+            id: user.id,
+            onboarding_completed: true,
+          },
+          {
+            onConflict: "id",
+          }
+        );
 
 if (profileError) {
   console.error("PROFILE SAVE ERROR:", profileError);

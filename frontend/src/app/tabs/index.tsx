@@ -1,6 +1,10 @@
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from "react";
+import { apiFetch } from "../../lib/api";
+import { getWeather } from "../../services/weather";
+
+import { SymbolView } from "expo-symbols";
+import { useRouter } from "expo-router";
+
 import {
   Image,
   Pressable,
@@ -10,159 +14,631 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import shirt2 from '../../assets/clothes/shirt2.png';
-import pants2 from '../../assets/clothes/pants2.png';
-import whiteSneakers from '../../assets/clothes/whiteSneakers.png';
-import jeans from '../../assets/clothes/jeans.jpg';
-import offshoulders from '../../assets/clothes/offshoulders.jpg';
-import shirt from '../../assets/clothes/shirt.png';
-import pants from '../../assets/clothes/pants.png';
-import blouse from '../../assets/clothes/outfit1.png';
-import tailoredPants from '../../assets/clothes/outfit2.png';
+} from "react-native";
+
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import shirt2 from "../../assets/clothes/shirt2.png";
+import pants2 from "../../assets/clothes/pants2.png";
+import whiteSneakers from "../../assets/clothes/whiteSneakers.png";
+import jeans from "../../assets/clothes/jeans.jpg";
+import offshoulders from "../../assets/clothes/offshoulders.jpg";
+import shirt from "../../assets/clothes/shirt.png";
+import pants from "../../assets/clothes/pants.png";
+import blouse from "../../assets/clothes/outfit1.png";
+import tailoredPants from "../../assets/clothes/outfit2.png";
+
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import {
+  BottomTabInset,
+  Fonts,
+  Spacing,
+} from "@/constants/theme";
 
 
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
+// ============================================================
+// PRESETS
+// ============================================================
 
 const presets = [
   {
-    label: 'Today\'s Weather',
-    emoji: '☀',
+    label: "Today's Weather",
+    emoji: "☀",
     looks: [
       {
-        title: 'Weather Ready',
-        note: 'A comfortable everyday combination for a clear day in the city.',
-        occasion: 'EVERYDAY · RELAXED',
-        items: { top: shirt2, bottom: pants2, shoes: whiteSneakers },
+        title: "Weather Ready",
+        note: "A comfortable everyday combination for a clear day in the city.",
+        occasion: "EVERYDAY · RELAXED",
+        items: {
+          top: shirt2,
+          bottom: pants2,
+          shoes: whiteSneakers,
+        },
       },
       {
-        title: 'Soft Layers',
-        note: 'A light blouse and tailored trousers keep the day feeling effortless.',
-        occasion: 'DAYTIME · POLISHED',
-        items: { top: blouse, bottom: pants2, shoes: whiteSneakers },
+        title: "Soft Layers",
+        note: "A light blouse and tailored trousers keep the day feeling effortless.",
+        occasion: "DAYTIME · POLISHED",
+        items: {
+          top: blouse,
+          bottom: pants2,
+          shoes: whiteSneakers,
+        },
       },
     ],
   },
+
   {
-    label: 'Dinner in Brera',
-    emoji: '◌',
+    label: "Dinner in Brera",
+    emoji: "◌",
     looks: [
       {
-        title: 'Brera After Dark',
-        note: 'A statement off-shoulder top paired with relaxed denim for dinner.',
-        occasion: 'EVENING · DINNER',
-        items: { top: offshoulders, bottom: jeans, shoes: whiteSneakers },
+        title: "Brera After Dark",
+        note: "A statement off-shoulder top paired with relaxed denim for dinner.",
+        occasion: "EVENING · DINNER",
+        items: {
+          top: offshoulders,
+          bottom: jeans,
+          shoes: whiteSneakers,
+        },
       },
       {
-        title: 'Evening Minimal',
-        note: 'A refined dark top and denim make an easy, understated dinner look.',
-        occasion: 'EVENING · SMART CASUAL',
-        items: { top: shirt2, bottom: jeans, shoes: whiteSneakers },
+        title: "Evening Minimal",
+        note: "A refined dark top and denim make an easy, understated dinner look.",
+        occasion: "EVENING · SMART CASUAL",
+        items: {
+          top: shirt2,
+          bottom: jeans,
+          shoes: whiteSneakers,
+        },
       },
     ],
   },
+
   {
-    label: 'Casual Meeting',
-    emoji: '▣',
+    label: "Casual Meeting",
+    emoji: "▣",
     looks: [
       {
-        title: 'Modern Atelier',
-        note: 'A relaxed everyday look with a clean, effortless silhouette.',
-        occasion: 'WORK · SMART CASUAL',
-        items: { top: blouse, bottom: tailoredPants, shoes: whiteSneakers },
+        title: "Modern Atelier",
+        note: "A relaxed everyday look with a clean, effortless silhouette.",
+        occasion: "WORK · SMART CASUAL",
+        items: {
+          top: blouse,
+          bottom: tailoredPants,
+          shoes: whiteSneakers,
+        },
       },
       {
-        title: 'Creative Office',
-        note: 'A simple dark top with tailored trousers feels polished but comfortable.',
-        occasion: 'WORK · CREATIVE',
-        items: { top: shirt2, bottom: pants2, shoes: whiteSneakers },
+        title: "Creative Office",
+        note: "A simple dark top with tailored trousers feels polished but comfortable.",
+        occasion: "WORK · CREATIVE",
+        items: {
+          top: shirt2,
+          bottom: pants2,
+          shoes: whiteSneakers,
+        },
       },
     ],
   },
+
   {
-    label: 'Weekend Gallery',
-    emoji: '✦',
+    label: "Weekend Gallery",
+    emoji: "✦",
     looks: [
       {
-        title: 'Weekend Edit',
-        note: 'An easy combination designed for a relaxed weekend mood.',
-        occasion: 'WEEKEND · CASUAL',
-        items: { top: shirt, bottom: pants, shoes: whiteSneakers },
+        title: "Weekend Edit",
+        note: "An easy combination designed for a relaxed weekend mood.",
+        occasion: "WEEKEND · CASUAL",
+        items: {
+          top: shirt,
+          bottom: pants,
+          shoes: whiteSneakers,
+        },
       },
       {
-        title: 'Gallery Stroll',
-        note: 'A soft statement top and relaxed denim make a comfortable gallery look.',
-        occasion: 'WEEKEND · CULTURE',
-        items: { top: offshoulders, bottom: jeans, shoes: whiteSneakers },
+        title: "Gallery Stroll",
+        note: "A soft statement top and relaxed denim make a comfortable gallery look.",
+        occasion: "WEEKEND · CULTURE",
+        items: {
+          top: offshoulders,
+          bottom: jeans,
+          shoes: whiteSneakers,
+        },
       },
     ],
   },
 ];
 
-const occasions = ['Work', 'Weekend', 'Evening'];
+const occasions = ["Work", "Weekend", "Evening"];
+
+
+// ============================================================
+// SCREEN
+// ============================================================
 
 export default function StylistScreen() {
-  const [occasion, setOccasion] = useState('Work');
-  const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+  const [occasion, setOccasion] = useState("Work");
+
+  const [selectedPresetIndex, setSelectedPresetIndex] =
+    useState(0);
+
   const [lookIndex, setLookIndex] = useState(0);
-  const [prompt, setPrompt] = useState('');
+
+  const [prompt, setPrompt] = useState("");
+
   const [isSaved, setIsSaved] = useState(false);
+
   const [isWorn, setIsWorn] = useState(false);
+
   const router = useRouter();
-  const selectedPreset = presets[selectedPresetIndex];
-  const look = selectedPreset.looks[lookIndex];
+
+  // ==========================================================
+  // WEATHER STATE
+  // ==========================================================
+
+  const [weather, setWeather] = useState<any>(null);
+
+  const [weatherLoading, setWeatherLoading] =
+    useState(true);
+
+
+  // ==========================================================
+  // LOAD WEATHER
+  // ==========================================================
+
+  useEffect(() => {
+
+    const loadWeather = async () => {
+
+      try {
+
+        // TEMPORARY USER ID
+        // Later replace this with Supabase authenticated user ID
+        const userId = "user001";
+
+
+        // ----------------------------------------------------
+        // Check geolocation
+        // ----------------------------------------------------
+
+        if (!navigator.geolocation) {
+
+          console.error(
+            "Geolocation is not supported."
+          );
+
+          setWeatherLoading(false);
+
+          return;
+        }
+
+
+        // ----------------------------------------------------
+        // Get current location
+        // ----------------------------------------------------
+
+        navigator.geolocation.getCurrentPosition(
+
+          async (position) => {
+
+            try {
+
+              const latitude =
+                position.coords.latitude;
+
+              const longitude =
+                position.coords.longitude;
+
+
+              console.log(
+                "Location:",
+                latitude,
+                longitude
+              );
+
+
+              // ------------------------------------------------
+              // Call your backend
+              // ------------------------------------------------
+
+              const data = await getWeather(
+                userId,
+                latitude,
+                longitude
+              );
+
+
+              console.log(
+                "WEATHER FROM BACKEND:",
+                data
+              );
+
+
+              // ------------------------------------------------
+              // Save weather response
+              // ------------------------------------------------
+
+              setWeather(data);
+
+            } catch (error) {
+
+              console.error(
+                "Weather API error:",
+                error
+              );
+
+            } finally {
+
+              setWeatherLoading(false);
+
+            }
+          },
+
+          (error) => {
+
+            console.error(
+              "Location error:",
+              error
+            );
+
+            setWeatherLoading(false);
+
+          }
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load weather:",
+          error
+        );
+
+        setWeatherLoading(false);
+      }
+    };
+
+
+    loadWeather();
+
+  }, []);
+
+
+  // ==========================================================
+  // WEATHER VALUES
+  // ==========================================================
+
+  const temperature =
+    weather?.weather?.temperature;
+
+  const feelsLike =
+    weather?.weather?.feels_like;
+
+  const weatherCode =
+    weather?.weather?.weather_code;
+
+  const temperatureCategory =
+    weather?.weather_context?.temperature_category;
+
+  const rainCategory =
+    weather?.weather_context?.rain_category;
+
+  const weatherOverall =
+    weather?.weather_context?.overall;
+
+
+  // ==========================================================
+  // WEATHER CONDITION
+  // ==========================================================
+
+  const getWeatherCondition = () => {
+
+    if (weatherLoading) {
+      return "Checking weather...";
+    }
+
+    if (!weather) {
+      return "Weather unavailable";
+    }
+
+
+    switch (weatherCode) {
+
+      case 0:
+        return "Clear skies";
+
+      case 1:
+      case 2:
+      case 3:
+        return "Partly cloudy";
+
+      case 45:
+      case 48:
+        return "Foggy";
+
+      case 51:
+      case 53:
+      case 55:
+      case 56:
+      case 57:
+        return "Drizzle";
+
+      case 61:
+      case 63:
+      case 65:
+      case 66:
+      case 67:
+        return "Rainy";
+
+      case 71:
+      case 73:
+      case 75:
+      case 77:
+        return "Snowy";
+
+      case 80:
+      case 81:
+      case 82:
+        return "Rain showers";
+
+      case 95:
+      case 96:
+      case 99:
+        return "Thunderstorm";
+
+      default:
+        return "Current conditions";
+    }
+  };
+
+
+  // ==========================================================
+  // WEATHER DESCRIPTION
+  // ==========================================================
+
+  const getWeatherDescription = () => {
+
+    if (weatherLoading) {
+
+      return "Checking today's weather...";
+    }
+
+
+    if (!weather) {
+
+      return "Weather information unavailable.";
+    }
+
+
+    if (
+      rainCategory === "rainy"
+    ) {
+
+      return "Rainy conditions today. Consider a light waterproof layer.";
+    }
+
+
+    if (
+      rainCategory === "wet"
+    ) {
+
+      return "There may be some rain today. A light layer could be useful.";
+    }
+
+
+    if (
+      temperatureCategory === "hot"
+    ) {
+
+      return "It's warm today. Light and breathable clothing will keep you comfortable.";
+    }
+
+
+    if (
+      temperatureCategory === "warm"
+    ) {
+
+      return "Light layers should keep you comfortable throughout the day.";
+    }
+
+
+    if (
+      temperatureCategory === "cool"
+    ) {
+
+      return "A light layer will help keep you comfortable today.";
+    }
+
+
+    if (
+      temperatureCategory === "cold"
+    ) {
+
+      return "You'll want warmer layers to stay comfortable today.";
+    }
+
+
+    return "Dress comfortably for today's conditions.";
+  };
+
+
+  // ==========================================================
+  // WEATHER ICON
+  // ==========================================================
+
+  const getWeatherIcon = () => {
+
+    if (
+      rainCategory === "rainy" ||
+      rainCategory === "wet"
+    ) {
+
+      return "cloud.rain.fill";
+    }
+
+
+    if (
+      temperatureCategory === "hot" ||
+      temperatureCategory === "warm"
+    ) {
+
+      return "sun.max.fill";
+    }
+
+
+    return "cloud.sun.fill";
+  };
+
+
+  // ==========================================================
+  // CURRENT PRESET
+  // ==========================================================
+
+  const selectedPreset =
+    presets[selectedPresetIndex];
+
+  const look =
+    selectedPreset.looks[lookIndex];
+
+
+  // ==========================================================
+  // SHUFFLE
+  // ==========================================================
 
   const shuffleLook = () => {
-    setLookIndex((current) => (current + 1) % selectedPreset.looks.length);
+
+    setLookIndex(
+      (current) =>
+        (current + 1) %
+        selectedPreset.looks.length
+    );
+
     setIsWorn(false);
+
     setIsSaved(false);
   };
 
-   const shareLook = async () => {
-       try {
-         await Share.share({
-           message: `Check out my ${look.title} outfit from Style Sense!`,
-         });
-       } catch (error) {
-         console.log('Share error:', error);
-       }
-     };
+
+  // ==========================================================
+  // SHARE
+  // ==========================================================
+
+  const shareLook = async () => {
+
+    try {
+
+      await Share.share({
+
+        message:
+          `Check out my ${look.title} outfit from Style Sense!`,
+
+      });
+
+    } catch (error) {
+
+      console.log(
+        "Share error:",
+        error
+      );
+    }
+  };
+
+
+  // ==========================================================
+  // BACKEND TEST
+  // ==========================================================
+
+  useEffect(() => {
+
+    const testBackend = async () => {
+
+      try {
+
+        const data =
+          await apiFetch("/");
+
+        console.log(
+          "Backend response:",
+          data
+        );
+
+      } catch (error) {
+
+        console.error(
+          "Backend error:",
+          error
+        );
+      }
+    };
+
+
+    testBackend();
+
+  }, []);
+
+
+  // ==========================================================
+  // UI
+  // ==========================================================
+
   return (
+
     <ThemedView style={styles.container}>
+
       <SafeAreaView style={styles.safeArea}>
+
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* HEADER */}
-          
+
+
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
           <View style={styles.header}>
+
             <View style={styles.headerTop}>
+
               <View>
+
                 <Text style={styles.kicker}>
                   STYLE SENSE
                 </Text>
 
                 <Text style={styles.greeting}>
-                  Good morning, Gauri
+                  Good morning
                 </Text>
+
               </View>
 
+
+              {/* DYNAMIC WEATHER */}
+
               <View style={styles.weather}>
+
                 <Text style={styles.weatherCity}>
-                  PARIS
+                  TODAY
                 </Text>
 
                 <Text style={styles.temperature}>
-                  19°C
+
+                  {weatherLoading
+                    ? "--"
+                    : `${Math.round(
+                        temperature
+                      )}°C`}
+
                 </Text>
+
               </View>
+
             </View>
+
 
             <Text style={styles.heroHeading}>
               Dress for the day.
@@ -171,357 +647,620 @@ export default function StylistScreen() {
             <Text style={styles.heroDescription}>
               Your wardrobe, your mood, your moment.
             </Text>
+
           </View>
 
-          {/* PRESETS */}
+
+          {/* ==================================================
+              PRESETS
+          ================================================== */}
+
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.presetRow}
           >
-            {presets.map((preset, index) => (
-              <Pressable
-                key={preset.label}
-                onPress={() => {
-                  setSelectedPresetIndex(index);
-                  setLookIndex(0);
-                  setPrompt(`Curate: ${preset.label}`);
-                  setIsWorn(false);
-                  setIsSaved(false);
-                }}
-                style={[
-                  styles.preset,
-                  index === selectedPresetIndex && styles.presetSelected,
-                ]}
-              >
-                <ThemedText style={styles.presetEmoji}>
-                  {preset.emoji}
-                </ThemedText>
 
-                <ThemedText
+            {presets.map(
+              (preset, index) => (
+
+                <Pressable
+                  key={preset.label}
+
+                  onPress={() => {
+
+                    setSelectedPresetIndex(
+                      index
+                    );
+
+                    setLookIndex(0);
+
+                    setPrompt(
+                      `Curate: ${preset.label}`
+                    );
+
+                    setIsWorn(false);
+
+                    setIsSaved(false);
+                  }}
+
                   style={[
-                    styles.presetText,
-                    index === selectedPresetIndex && styles.presetTextSelected,
+                    styles.preset,
+
+                    index ===
+                      selectedPresetIndex &&
+                      styles.presetSelected,
                   ]}
                 >
-                  {preset.label}
-                </ThemedText>
-              </Pressable>
-            ))}
+
+                  <ThemedText
+                    style={styles.presetEmoji}
+                  >
+                    {preset.emoji}
+                  </ThemedText>
+
+
+                  <ThemedText
+                    style={[
+                      styles.presetText,
+
+                      index ===
+                        selectedPresetIndex &&
+                        styles.presetTextSelected,
+                    ]}
+                  >
+                    {preset.label}
+                  </ThemedText>
+
+                </Pressable>
+
+              )
+            )}
+
           </ScrollView>
 
-          {/* OUTFIT CARD */}
+
+          {/* ==================================================
+              OUTFIT CARD
+          ================================================== */}
+
           <View style={styles.lookCard}>
 
+
             {/* CARD HEADER */}
+
             <View style={styles.outfitCardHeader}>
+
               <View>
-                <ThemedText style={styles.lookKicker}>
+
+                <ThemedText
+                  style={styles.lookKicker}
+                >
                   CURATED RECOMMENDATION
                 </ThemedText>
 
-                <ThemedText style={styles.lookTitle}>
+
+                <ThemedText
+                  style={styles.lookTitle}
+                >
                   {look.title}
                 </ThemedText>
+
               </View>
+
 
               <Pressable
                 accessibilityLabel="Save outfit"
+
                 onPress={() =>
-                  setIsSaved((current) => !current)
+                  setIsSaved(
+                    (current) => !current
+                  )
                 }
+
                 style={styles.saveButton}
               >
+
                 <SymbolView
                   name={{
                     ios: isSaved
-                      ? 'bookmark.fill'
-                      : 'bookmark',
+                      ? "bookmark.fill"
+                      : "bookmark",
+
                     android: isSaved
-                      ? 'bookmark'
-                      : 'bookmark_border',
+                      ? "bookmark"
+                      : "bookmark_border",
+
                     web: isSaved
-                      ? 'bookmark'
-                      : 'bookmark_border',
+                      ? "bookmark"
+                      : "bookmark_border",
                   }}
+
                   size={19}
+
                   tintColor="#745a38"
                 />
+
               </Pressable>
+
             </View>
 
-            {/* OUTFIT CANVAS */}
+
+            {/* ==================================================
+                OUTFIT CANVAS
+            ================================================== */}
+
             <View style={styles.outfitCanvas}>
 
+
               <View style={styles.canvasLabel}>
-                <ThemedText style={styles.canvasLabelText}>
+
+                <ThemedText
+                  style={styles.canvasLabelText}
+                >
                   YOUR LOOK
                 </ThemedText>
+
               </View>
 
+
               {/* TOP */}
+
               <Image
-                source={ look.items.top }
+                source={look.items.top}
                 style={styles.topItem}
                 resizeMode="contain"
               />
 
+
               {/* BOTTOM */}
+
               <Image
-                source={ look.items.bottom }
+                source={look.items.bottom}
                 style={styles.bottomItem}
                 resizeMode="contain"
               />
 
+
               {/* SHOES */}
+
               <Image
-                source={ look.items.shoes }
+                source={look.items.shoes}
                 style={styles.shoesItem}
                 resizeMode="contain"
               />
 
-
             </View>
 
-            {/* OUTFIT INFORMATION */}
+
+            {/* ==================================================
+                OUTFIT INFORMATION
+            ================================================== */}
+
             <View style={styles.outfitInfo}>
+
               <View style={styles.outfitInfoLeft}>
-                <ThemedText style={styles.outfitOccasion}>
+
+                <ThemedText
+                  style={styles.outfitOccasion}
+                >
                   {look.occasion}
                 </ThemedText>
 
-                <ThemedText style={styles.outfitDescription}>
+
+                <ThemedText
+                  style={styles.outfitDescription}
+                >
                   {look.note}
                 </ThemedText>
+
               </View>
+
+
+              {/* DYNAMIC WEATHER BADGE */}
 
               <View style={styles.weatherBadge}>
-                <ThemedText style={styles.weatherBadgeTemp}>
-                  19°
+
+                <ThemedText
+                  style={styles.weatherBadgeTemp}
+                >
+
+                  {weatherLoading
+                    ? "--"
+                    : `${Math.round(
+                        temperature
+                      )}°`}
+
                 </ThemedText>
 
-                <ThemedText style={styles.weatherBadgeText}>
-                  PARIS
+
+                <ThemedText
+                  style={styles.weatherBadgeText}
+                >
+                  TODAY
                 </ThemedText>
+
               </View>
+
             </View>
 
-            {/* ACTIONS */}
+
+            {/* ==================================================
+                ACTIONS
+            ================================================== */}
+
             <View style={styles.cardActions}>
 
+
               {/* SHARE */}
-              
+
               <Pressable
                 onPress={shareLook}
-                style={styles.cardActionSecondary}
+                style={
+                  styles.cardActionSecondary
+                }
               >
+
                 <SymbolView
                   name={{
-                    ios: 'square.and.arrow.up',
-                    android: 'share',
-                    web: 'share',
+                    ios: "square.and.arrow.up",
+                    android: "share",
+                    web: "share",
                   }}
+
                   size={20}
+
                   tintColor="#745a38"
                 />
 
-                <ThemedText style={styles.cardActionText}>
+                <ThemedText
+                  style={styles.cardActionText}
+                >
                   SHARE
                 </ThemedText>
+
               </Pressable>
 
+
               {/* TRY ON */}
+
               <Pressable
-                onPress={() => router.push('/try_on')}
-                style={styles.cardActionPrimary}
+                onPress={() =>
+                  router.push("/try_on")
+                }
+
+                style={
+                  styles.cardActionPrimary
+                }
               >
+
                 <SymbolView
                   name={{
-                    ios: 'camera.viewfinder',
-                    android: 'camera',
-                    web: 'camera',
+                    ios: "camera.viewfinder",
+                    android: "camera",
+                    web: "camera",
                   }}
+
                   size={18}
+
                   tintColor="#ffddb4"
                 />
 
-                <ThemedText style={styles.cardActionPrimaryText}>
+                <ThemedText
+                  style={
+                    styles.cardActionPrimaryText
+                  }
+                >
                   TRY ON
                 </ThemedText>
+
               </Pressable>
 
+
               {/* SHUFFLE */}
+
               <Pressable
                 onPress={shuffleLook}
-                style={styles.cardActionSecondary}
+                style={
+                  styles.cardActionSecondary
+                }
               >
+
                 <SymbolView
                   name={{
-                    ios: 'shuffle',
-                    android: 'shuffle',
-                    web: 'shuffle',
+                    ios: "shuffle",
+                    android: "shuffle",
+                    web: "shuffle",
                   }}
+
                   size={20}
+
                   tintColor="#745a38"
                 />
 
-                <ThemedText style={styles.cardActionText}>
+                <ThemedText
+                  style={styles.cardActionText}
+                >
                   SHUFFLE
                 </ThemedText>
+
               </Pressable>
 
             </View>
+
           </View>
 
-          {/* PROMPT */}
+
+          {/* ==================================================
+              PROMPT
+          ================================================== */}
+
           <View style={styles.promptBox}>
+
             <SymbolView
               name={{
-                ios: 'wand.and.stars',
-                android: 'auto_awesome',
-                web: 'auto_awesome',
+                ios: "wand.and.stars",
+                android: "auto_awesome",
+                web: "auto_awesome",
               }}
+
               size={18}
+
               tintColor="#745a38"
             />
+
 
             <TextInput
               value={prompt}
               onChangeText={setPrompt}
+
               placeholder="Ask Élise to refine this look"
+
               placeholderTextColor="#747878"
+
               style={styles.promptInput}
             />
 
+
             <Pressable
               accessibilityLabel="Send to Elise"
-              onPress={() => setPrompt('')}
+
+              onPress={() =>
+                setPrompt("")
+              }
+
               style={styles.sendButton}
             >
+
               <SymbolView
                 name={{
-                  ios: 'arrow.up',
-                  android: 'arrow_upward',
-                  web: 'arrow_upward',
+                  ios: "arrow.up",
+                  android: "arrow_upward",
+                  web: "arrow_upward",
                 }}
+
                 size={17}
+
                 tintColor="#ffddb4"
               />
+
             </Pressable>
+
           </View>
+
+
+          {/* ==================================================
+              DYNAMIC WEATHER CARD
+          ================================================== */}
+
           <View style={styles.weatherCard}>
+
+
+            {/* WEATHER ICON */}
+
             <View style={styles.weatherIcon}>
+
               <SymbolView
-                name="sun.max.fill"
+                name={getWeatherIcon()}
                 size={23}
                 tintColor="#745a38"
               />
+
             </View>
 
+
+            {/* WEATHER CONTENT */}
+
             <View style={styles.weatherContent}>
-              <Text style={styles.weatherCardKicker}>
+
+              <Text
+                style={styles.weatherCardKicker}
+              >
                 FOR TODAY
               </Text>
 
-              <Text style={styles.weatherCardTitle}>
-                19°C · Clear skies
+
+              <Text
+                style={styles.weatherCardTitle}
+              >
+
+                {weatherLoading
+
+                  ? "Checking weather..."
+
+                  : `${Math.round(
+                      temperature
+                    )}°C · ${getWeatherCondition()}`}
+
               </Text>
 
-              <Text style={styles.weatherCardText}>
-                Light layers should keep you comfortable
-                throughout the day.
+
+              <Text
+                style={styles.weatherCardText}
+              >
+                {getWeatherDescription()}
               </Text>
+
             </View>
+
 
             <SymbolView
               name="chevron.right"
               size={18}
               tintColor="#9b9892"
             />
+
           </View>
-          {/* FOOTER */}
-          
+
+
+          {/* ==================================================
+              QUICK ACCESS
+          ================================================== */}
+
           <View style={styles.section}>
+
             <Text style={styles.sectionKicker}>
               QUICK ACCESS
             </Text>
 
-            <View style={styles.quickAccessRow}>
-              <Pressable 
-                onPress={() => router.push('/saved')}
-                style={styles.quickCard}>
+
+            <View
+              style={styles.quickAccessRow}
+            >
+
+
+              {/* SAVED */}
+
+              <Pressable
+                onPress={() =>
+                  router.push("/saved")
+                }
+
+                style={styles.quickCard}
+              >
+
                 <View style={styles.quickIcon}>
+
                   <SymbolView
                     name="plus"
                     size={19}
                     tintColor="#745a38"
                   />
+
                 </View>
 
+
                 <View style={styles.quickText}>
+
                   <Text style={styles.quickTitle}>
                     Saved Items
                   </Text>
 
-                  <Text style={styles.quickDescription}>
+
+                  <Text
+                    style={
+                      styles.quickDescription
+                    }
+                  >
                     See your saved items
                   </Text>
+
                 </View>
+
 
                 <SymbolView
                   name="chevron.right"
                   size={16}
                   tintColor="#9b9892"
                 />
+
               </Pressable>
 
-              <Pressable 
-              onPress={() => router.push('/itinerary')}
-              style={styles.quickCard}>
+
+              {/* ITINERARY */}
+
+              <Pressable
+                onPress={() =>
+                  router.push("/itinerary")
+                }
+
+                style={styles.quickCard}
+              >
+
                 <View style={styles.quickIcon}>
+
                   <SymbolView
                     name="camera.metering.center.weighted"
                     size={19}
                     tintColor="#745a38"
                   />
+
                 </View>
 
+
                 <View style={styles.quickText}>
+
                   <Text style={styles.quickTitle}>
                     Itinerary
                   </Text>
 
-                  <Text style={styles.quickDescription}>
+
+                  <Text
+                    style={
+                      styles.quickDescription
+                    }
+                  >
                     Outfits for your next trip
                   </Text>
+
                 </View>
+
 
                 <SymbolView
                   name="chevron.right"
                   size={16}
                   tintColor="#9b9892"
                 />
+
               </Pressable>
+
             </View>
+
           </View>
-        <View style={styles.colophon}>
-            <ThemedText style={styles.colophonText}>
+
+
+          {/* ==================================================
+              FOOTER
+          ================================================== */}
+
+          <View style={styles.colophon}>
+
+            <ThemedText
+              style={styles.colophonText}
+            >
               STYLE SENSE · EDITED WITH INTENTION
             </ThemedText>
+
           </View>
+
         </ScrollView>
+
       </SafeAreaView>
+
     </ThemedView>
   );
-  
-
- 
 }
 
+
+// ============================================================
+// STYLES
+// ============================================================
+
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
-    backgroundColor: '#fbf9f6',
+    backgroundColor: "#fbf9f6",
   },
 
   safeArea: {
@@ -534,79 +1273,90 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
 
-  //Header
-   header: {
+
+  // ----------------------------------------------------------
+  // HEADER
+  // ----------------------------------------------------------
+
+  header: {
     gap: 8,
   },
 
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
 
   kicker: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 2,
-    color: '#745a38',
-  },greeting: {
+    color: "#745a38",
+  },
+
+  greeting: {
     fontFamily: Fonts.serif,
     fontSize: 23,
     lineHeight: 30,
-    color: '#1b1c1a',
+    color: "#1b1c1a",
     marginTop: 4,
   },
 
   weather: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     gap: 1,
   },
 
   weatherCity: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.2,
-    color: '#747878',
+    color: "#747878",
   },
 
   temperature: {
     fontFamily: Fonts.serif,
     fontSize: 19,
-    color: '#745a38',
+    color: "#745a38",
   },
 
   heroHeading: {
     fontFamily: Fonts.serif,
     fontSize: 34,
     lineHeight: 41,
-    fontWeight: '500',
-    color: '#1b1c1a',
+    fontWeight: "500",
+    color: "#1b1c1a",
     marginTop: 8,
   },
 
   heroDescription: {
     fontSize: 14,
-    color: '#747878',
+    color: "#747878",
   },
+
+
+  // ----------------------------------------------------------
+  // WEATHER CARD
+  // ----------------------------------------------------------
 
   weatherCard: {
     minHeight: 88,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 13,
     padding: 15,
     borderRadius: 15,
-    backgroundColor: '#f0eeea',
+    backgroundColor: "#f0eeea",
   },
 
   weatherIcon: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fedaae',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fedaae",
   },
 
   weatherContent: {
@@ -616,76 +1366,87 @@ const styles = StyleSheet.create({
 
   weatherCardKicker: {
     fontSize: 8,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1.2,
-    color: '#745a38',
+    color: "#745a38",
   },
 
   weatherCardTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#1b1c1a',
+    fontWeight: "700",
+    color: "#1b1c1a",
   },
 
   weatherCardText: {
     fontSize: 11,
     lineHeight: 16,
-    color: '#747878',
+    color: "#747878",
   },
+
+
+  // ----------------------------------------------------------
+  // PRESETS
+  // ----------------------------------------------------------
 
   presetRow: {
     gap: 8,
   },
 
   preset: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 13,
     paddingVertical: 9,
     borderRadius: 18,
-    backgroundColor: '#f0eeea',
+    backgroundColor: "#f0eeea",
   },
 
   presetSelected: {
-    backgroundColor: '#1b1c1a',
+    backgroundColor: "#1b1c1a",
   },
 
   presetEmoji: {
-    color: '#745a38',
+    color: "#745a38",
     fontSize: 14,
   },
 
   presetText: {
-    color: '#1b1c1a',
+    color: "#1b1c1a",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   presetTextSelected: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
 
+
+  // ----------------------------------------------------------
+  // LOOK CARD
+  // ----------------------------------------------------------
+
   lookCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 20,
     padding: 12,
-    boxShadow: '0 5px 18px rgba(24, 22, 20, 0.10)',
+    boxShadow:
+      "0 5px 18px rgba(24, 22, 20, 0.10)",
   },
 
   outfitCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 5,
     paddingTop: 3,
     paddingBottom: 10,
   },
 
   lookKicker: {
-    color: '#745a38',
+    color: "#745a38",
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.4,
   },
 
@@ -700,84 +1461,93 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0eeea',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0eeea",
   },
 
-  /*
-   * MAIN OUTFIT CANVAS
-   */
+
+  // ----------------------------------------------------------
+  // OUTFIT CANVAS
+  // ----------------------------------------------------------
+
   outfitCanvas: {
-    width: '100%',
+    width: "100%",
     height: 410,
     borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#f4f1ec',
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "hidden",
+    backgroundColor: "#f4f1ec",
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   canvasLabel: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     left: 12,
     zIndex: 20,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.82)',
+    backgroundColor:
+      "rgba(255,255,255,0.82)",
   },
 
   canvasLabelText: {
-    color: '#745a38',
+    color: "#745a38",
     fontSize: 8,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.1,
   },
 
-  /*
-   * INDIVIDUAL CLOTHING LAYERS
-   */
+
+  // ----------------------------------------------------------
+  // CLOTHING
+  // ----------------------------------------------------------
 
   topItem: {
-    position: 'absolute',
-    width: '30%',
-    height: '50%',
-    top: '0%',
+    position: "absolute",
+    width: "30%",
+    height: "50%",
+    top: "0%",
     zIndex: 4,
   },
 
   bottomItem: {
-    position: 'absolute',
-    width: '70%',
-    height: '60%',
-    top: '24%',
+    position: "absolute",
+    width: "70%",
+    height: "60%",
+    top: "24%",
     zIndex: 3,
   },
 
   shoesItem: {
-    position: 'absolute',
-    width: '20%',
-    height: '15%',
-    bottom: '4%',
+    position: "absolute",
+    width: "20%",
+    height: "15%",
+    bottom: "4%",
     zIndex: 2,
   },
 
   bagItem: {
-    position: 'absolute',
-    width: '30%',
-    height: '28%',
-    right: '7%',
-    top: '38%',
+    position: "absolute",
+    width: "30%",
+    height: "28%",
+    right: "7%",
+    top: "38%",
     zIndex: 5,
   },
 
+
+  // ----------------------------------------------------------
+  // OUTFIT INFO
+  // ----------------------------------------------------------
+
   outfitInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     paddingHorizontal: 5,
     paddingTop: 14,
     paddingBottom: 12,
@@ -789,40 +1559,45 @@ const styles = StyleSheet.create({
   },
 
   outfitOccasion: {
-    color: '#745a38',
+    color: "#745a38",
     fontSize: 8,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.1,
     marginBottom: 5,
   },
 
   outfitDescription: {
-    color: '#606260',
+    color: "#606260",
     fontSize: 12,
     lineHeight: 17,
   },
 
   weatherBadge: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     paddingLeft: 8,
   },
 
   weatherBadgeTemp: {
     fontFamily: Fonts.serif,
     fontSize: 18,
-    color: '#745a38',
+    color: "#745a38",
   },
 
   weatherBadgeText: {
     fontSize: 7,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1,
-    color: '#747878',
+    color: "#747878",
     marginTop: 1,
   },
 
+
+  // ----------------------------------------------------------
+  // ACTIONS
+  // ----------------------------------------------------------
+
   cardActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 7,
     paddingTop: 4,
   },
@@ -831,54 +1606,59 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 3,
-    backgroundColor: '#f0eeea',
+    backgroundColor: "#f0eeea",
     borderWidth: 1,
-    borderColor: '#e4e2df',
+    borderColor: "#e4e2df",
   },
 
   cardActionPrimary: {
     flex: 1.5,
     height: 56,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: 6,
-    backgroundColor: '#1b1c1a',
+    backgroundColor: "#1b1c1a",
   },
 
   cardActionText: {
-    color: '#444748',
+    color: "#444748",
     fontSize: 8,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.9,
   },
 
   cardActionPrimaryText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.8,
   },
 
+
+  // ----------------------------------------------------------
+  // PROMPT
+  // ----------------------------------------------------------
+
   promptBox: {
     minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingHorizontal: 12,
     borderRadius: 11,
-    backgroundColor: '#f5f3f0',
+    backgroundColor: "#f5f3f0",
     borderWidth: 1,
-    borderColor: '#e4e2df',
+    borderColor: "#e4e2df",
   },
 
   promptInput: {
     flex: 1,
-    color: '#1b1c1a',
+    color: "#1b1c1a",
     fontSize: 14,
     paddingVertical: 0,
   },
@@ -887,77 +1667,87 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1b1c1a',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1b1c1a",
   },
 
-  colophon: {
-    alignItems: 'center',
-    paddingVertical: Spacing.two,
-  },
 
-  colophonText: {
-    color: '#747878',
-    fontSize: 8,
-    letterSpacing: 1.3,
-    fontWeight: '700',
-  },
+  // ----------------------------------------------------------
+  // QUICK ACCESS
+  // ----------------------------------------------------------
 
   section: {
     gap: 10,
   },
 
   sectionKicker: {
-    color: '#745a38',
+    color: "#745a38",
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.5,
   },
 
   quickAccessRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
 
   quickCard: {
     flex: 1,
     minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     padding: 12,
     borderRadius: 14,
-    backgroundColor: '#f4f1ec',
+    backgroundColor: "#f4f1ec",
     borderWidth: 1,
-    borderColor: '#e4e2df',
+    borderColor: "#e4e2df",
   },
 
   quickIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8efe2',
-    marginRight : 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8efe2",
+    marginRight: 9,
   },
 
   quickText: {
     flex: 1,
-    // gap: 2,
   },
 
   quickTitle: {
-    color: '#1b1c1a',
+    color: "#1b1c1a",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 
   quickDescription: {
-    color: '#747878',
+    color: "#747878",
     fontSize: 9,
     lineHeight: 13,
-    marginTop:3,
+    marginTop: 3,
   },
+
+
+  // ----------------------------------------------------------
+  // FOOTER
+  // ----------------------------------------------------------
+
+  colophon: {
+    alignItems: "center",
+    paddingVertical: Spacing.two,
+  },
+
+  colophonText: {
+    color: "#747878",
+    fontSize: 8,
+    letterSpacing: 1.3,
+    fontWeight: "700",
+  },
+
 });

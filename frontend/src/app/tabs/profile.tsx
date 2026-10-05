@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useState , useEffect } from 'react';
 import {
   Alert,
   Pressable,
@@ -111,26 +111,52 @@ function ToggleRow({
 
 export default function ProfileScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const [selectedMoods, setSelectedMoods] = useState([
     'Minimalist',
     'Quiet Luxury',
     'Smart Casual',
-    'Old Money',
+    'Old Money'
   ]);
+
+  const [profileName, setProfileName] = useState('');
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+
+  // LOAD USER NAME
+  useEffect(() => {
+    const loadProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("PROFILE LOAD ERROR:", error);
+        return;
+      }
+
+      if (data?.name) {
+        setProfileName(data.name);
+        setNameDraft(data.name);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   const [isEditingMoods, setIsEditingMoods] =
     useState(false);
 
   const [newMood, setNewMood] = useState('');
-
-  const [profileName, setProfileName] =
-    useState('Elena Rostova');
-
-  const [nameDraft, setNameDraft] =
-    useState('Elena Rostova');
-
-  const [isEditingName, setIsEditingName] =
-    useState(false);
 
   const [weatherGuidance, setWeatherGuidance] =
     useState(true);
@@ -168,16 +194,57 @@ export default function ProfileScreen() {
     ),
   ];
 
-  const saveName = () => {
-    const nextName = nameDraft.trim();
+  const saveName = async () => {
+  const nextName = nameDraft.trim();
 
-    if (!nextName) {
+  if (!nextName) {
+    Alert.alert("Invalid Name", "Please enter your name.");
+    return;
+  }
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      Alert.alert("Error", "You are not logged in.");
       return;
     }
 
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({
+        name: nextName,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("NAME UPDATE ERROR:", error);
+
+      Alert.alert(
+        "Update Failed",
+        error.message
+      );
+
+      return;
+    }
+
+    // Update local UI after successful DB update
     setProfileName(nextName);
+    setNameDraft(nextName);
     setIsEditingName(false);
-  };
+
+  } catch (error: any) {
+    console.error("SAVE NAME ERROR:", error);
+
+    Alert.alert(
+      "Error",
+      error?.message || "Unable to update name."
+    );
+  }
+};
 
   // =========================================================
   // LOGOUT
@@ -314,7 +381,14 @@ export default function ProfileScreen() {
 
             <View style={styles.avatar}>
               <ThemedText style={styles.avatarText}>
-                ER
+                {profileName
+                  ? profileName
+                      .split(" ")
+                      .map((word) => word[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()
+                  : "YN"}
               </ThemedText>
             </View>
 
@@ -361,10 +435,8 @@ export default function ProfileScreen() {
             ) : (
               <View style={styles.nameRow}>
 
-                <ThemedText
-                  style={styles.profileName}
-                >
-                  {profileName}
+                <ThemedText style={styles.profileName}>
+                  {profileName || "Your Name"}
                 </ThemedText>
 
                 <Pressable
@@ -1029,7 +1101,7 @@ export default function ProfileScreen() {
             <ThemedText
               style={styles.colophonText}
             >
-              CURATED FOR {profileName.toUpperCase()}
+              CURATED FOR {(profileName || "YOU").toUpperCase()}
             </ThemedText>
 
           </View>
@@ -1090,6 +1162,7 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     fontWeight: '500',
     marginTop: 4,
+    color: '#1b1c1a',
   },
 
   subtitle: {
@@ -1134,7 +1207,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 5,
-    borderColor: '#eae8e5',
+    borderColor: '#ccc7be',
   },
 
   avatarText: {
@@ -1210,7 +1283,7 @@ const styles = StyleSheet.create({
   },
 
   profileDetail: {
-    color: '#747878',
+    color: '#838d8d',
     fontSize: 12,
     marginBottom: Spacing.two,
   },
@@ -1265,6 +1338,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.1,
     textTransform: 'uppercase',
+    color: '#745a38',
   },
 
   editText: {
@@ -1369,6 +1443,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
+    color: '#1b1c1a',
   },
 
   cutIcon: {
@@ -1396,6 +1471,7 @@ const styles = StyleSheet.create({
   cutValue: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#1b1c1a',
   },
 
   cutBadge: {

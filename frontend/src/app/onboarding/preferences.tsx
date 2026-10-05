@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   Pressable,
   ScrollView,
@@ -10,8 +9,23 @@ import {
   SafeAreaView,
   Alert,
 } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { supabase } from "../../lib/supabase";
+
+import oldmoney from "../../assets/styles/oldmoney.png";
+import minimalist from "../../assets/styles/minimalist_scandi.png";
+import parisian from "../../assets/styles/parisian_scandi.png";
+import utility from "../../assets/styles/elevated_utility.png";
+import streetwear from "../../assets/styles/streetstyle.png";
+import feminine from "../../assets/styles/feminine.png"; 
+
+import apple from "../../assets/body-type/apple.jpg";
+import hourglass from "../../assets/body-type/hourglass.jpg";
+import inverted from "../../assets/body-type/inverted_triangle.jpg";
+import pear from "../../assets/body-type/pear.jpg";
+import rectangle from "../../assets/body-type/rectangle.jpg";
+import oval from "../../assets/body-type/oval.jpg";
 
 const STEPS = 6;
 
@@ -31,31 +45,37 @@ const STYLE_OPTIONS = [
     id: "old_money",
     title: "Old Money",
     subtitle: "Timeless & refined",
+    image: oldmoney,
   },
   {
     id: "minimalist_scandi",
     title: "Minimalist Scandi",
     subtitle: "Clean & effortless",
+    image: minimalist,
   },
   {
     id: "parisian_chic",
     title: "Parisian Chic",
     subtitle: "Elegant & relaxed",
+    image: parisian,
   },
   {
     id: "elevated_utility",
     title: "Elevated Utility",
     subtitle: "Functional & modern",
+    image: utility,
   },
   {
     id: "streetwear",
     title: "Modern Streetwear",
     subtitle: "Bold & relaxed",
+    image: streetwear,
   },
   {
     id: "feminine",
     title: "Feminine",
     subtitle: "Soft & polished",
+    image: feminine,
   },
 ];
 
@@ -97,31 +117,37 @@ const BODY_OPTIONS = [
     id: "inverted_triangle",
     title: "Inverted Triangle",
     subtitle: "Athletic",
+    image:inverted,
   },
   {
     id: "rectangle",
     title: "Rectangle",
     subtitle: "Slender",
+    image: rectangle,
   },
   {
     id: "hourglass",
     title: "Hourglass",
     subtitle: "Balanced curves",
+    image: hourglass,
   },
   {
     id: "oval",
     title: "Oval",
     subtitle: "Soft curve",
+    image: oval,
   },
   {
     id: "pear",
     title: "Pear",
     subtitle: "Bottom balanced",
+    image: pear,
   },
   {
     id: "apple",
     title: "Apple",
     subtitle: "Fuller middle",
+    image:apple,
   },
 ];
 
@@ -482,6 +508,20 @@ if (profileError) {
                     styles.selectedDarkCard,
                 ]}
               >
+                <View style={styles.cardImage}>
+                  <Image
+                    source={ item.image }
+                    style={styles.cardImage}
+                    contentFit="cover"
+                  />
+                  <View
+                    style={styles.textBackground}
+                  >
+                    <Text style={styles.checkText}>
+                      ✓
+                    </Text>
+                  </View>
+                </View>
                 <View
                   style={[
                     styles.cardImagePlaceholder,
@@ -496,19 +536,16 @@ if (profileError) {
                         styles.whiteText,
                     ]}
                   >
-                    {index + 1}
+                    
                   </Text>
+           
                 </View>
+                
 
-                {selected && (
-                  <View
-                    style={styles.checkCircle}
-                  >
-                    <Text style={styles.checkText}>
-                      ✓
-                    </Text>
-                  </View>
-                )}
+                
+                {/* {selected && (
+                  
+                )} */}
 
                 <Text
                   style={[
@@ -646,7 +683,7 @@ if (profileError) {
           Calibrates drape, hemlines, and
           tailoring.
         </Text>
-
+      
         <View style={styles.grid}>
           {BODY_OPTIONS.map((item) => {
             const selected =
@@ -674,7 +711,7 @@ if (profileError) {
                       styles.darkPlaceholder,
                   ]}
                 >
-                  <Text
+                  {/* <Text
                     style={[
                       styles.bodySymbol,
                       selected &&
@@ -682,18 +719,31 @@ if (profileError) {
                     ]}
                   >
                     ◇
-                  </Text>
+                  </Text> */}
                 </View>
-
-                {selected && (
+                    <View style={styles.cardImage}>
+                  <Image
+                    source={ item.image }
+                    style={styles.cardImage}
+                    contentFit="cover"
+                  />
+                  <View
+                    style={styles.textBackground}
+                  >
+                    <Text style={styles.checkText}>
+                      ✓
+                    </Text>
+                  </View>
+                </View>
+                {/* {selected && (
                   <View
                     style={styles.checkCircle}
                   >
                     <Text style={styles.checkText}>
                       ✓
                     </Text>
-                  </View>
-                )}
+                  </View> */}
+                {/* )} */}
 
                 <Text
                   style={[
@@ -1262,12 +1312,12 @@ const styles = StyleSheet.create({
   },
 
   selectedDarkCard: {
-    backgroundColor: "#111",
-    borderColor: "#111",
+    backgroundColor: "#a18731",
+    borderColor: "#a18731",
   },
 
   cardImagePlaceholder: {
-    height: 116,
+    height: 10,
     backgroundColor: "#DDD9D1",
     justifyContent: "center",
     alignItems: "center",
@@ -1284,9 +1334,9 @@ const styles = StyleSheet.create({
   },
 
   cardTitle: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#222",
+    color: "#d3ab7d",
     marginTop: 11,
     marginHorizontal: 12,
   },
@@ -1296,6 +1346,27 @@ const styles = StyleSheet.create({
     color: "#888",
     marginTop: 4,
     marginHorizontal: 12,
+  },
+
+  cardImage:{
+    width: "100%",
+    height:180,
+    aspectRatio: 0.78,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "#dededb",
+  },
+
+  textBackground: {
+    position: "absolute",
+    bottom:10,
+    left:10,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
 
   selectedSubText: {
@@ -1319,7 +1390,7 @@ const styles = StyleSheet.create({
   },
 
   checkText: {
-    color: "#111",
+    color: "#ab9c5b",
     fontSize: 12,
     fontWeight: "700",
   },

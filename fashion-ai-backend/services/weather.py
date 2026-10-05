@@ -50,7 +50,10 @@ async def get_current_weather(latitude: float, longitude: float):
 
     client_kwargs = _build_client_kwargs()
 
-    async with httpx.AsyncClient(**client_kwargs) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(20.0, connect=20.0),
+        **client_kwargs
+    ) as client:
         response = await client.get(
             OPEN_METEO_URL,
             params=params

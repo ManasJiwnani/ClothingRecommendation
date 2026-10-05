@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getCurrentCoordinates } from '../../services/location';
 import {
   ScrollView,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   View,
   Pressable,
   Linking,
+  ActivityIndicator,
 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +28,13 @@ import shoulderBag from '../../assets/shoulderBag.png';
 import whiteSneakers from '../../assets/clothes/whiteSneakers.png';
 
 import { ThemedText } from '@/components/themed-text';
+import { supabase } from '../../lib/supabase';
+import {
+  getDailyRecommendation,
+  type DailyRecommendationResponse,
+  type OutfitRecommendation,
+  type RecommendationPreset,
+} from '../../services/recommendation';
 // import { ThemedView } from '@/components/themed-view';
 type Vibe = {
   id: string;
@@ -416,6 +425,17 @@ const wardrobeElevators = [
   },
 ];
 
+function itemLabel(value: unknown) {
+  if (typeof value !== 'object' || value === null) {
+    return '';
+  }
+
+  const item = value as Record<string, unknown>;
+  return [item.color, item.subcategory || item.category]
+    .filter((part): part is string => typeof part === 'string' && !!part)
+    .join(' ');
+}
+
 export default function HomeScreen() {
   const [selectedVibe, setSelectedVibe] =
     useState('ethnic');
@@ -423,7 +443,95 @@ export default function HomeScreen() {
   const [selectedOccasion, setSelectedOccasion] =
     useState('presentation');
 
+  const [dailyRecommendation, setDailyRecommendation] =
+    useState<DailyRecommendationResponse | null>(null);
+  const [recommendationLoading, setRecommendationLoading] =
+    useState(true);
+  const [recommendationError, setRecommendationError] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadRecommendation = async () => {
+      setRecommendationLoading(true);
+      setRecommendationError(null);
+
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) {
+          throw authError;
+        }
+        if (!user) {
+          throw new Error('Sign in to get a personalized outfit.');
+        }
+
+        const location = await getCurrentCoordinates();
+        const presetMap: Record<string, RecommendationPreset> = {
+          college: 'college',
+          presentation: 'presentation',
+          'casual-day': 'weekend',
+          dinner: 'dinner',
+          party: 'dinner',
+        };
+        const response = await getDailyRecommendation(
+          user.id,
+          presetMap[selectedOccasion] || 'weather',
+          location.latitude,
+          location.longitude
+        );
+        if (!response.recommendations.length) {
+          throw new Error(
+            'No outfit could be built from your closet. Add more clothing items and try again.'
+          );
+        }
+        if (isActive) {
+          setDailyRecommendation(response);
+        }
+      } catch (error) {
+        console.error('Failed to load daily outfit:', error);
+        if (isActive) {
+          setDailyRecommendation(null);
+          setRecommendationError(
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        }
+      } finally {
+        if (isActive) {
+          setRecommendationLoading(false);
+        }
+      }
+    };
+
+    void loadRecommendation();
+    return () => {
+      isActive = false;
+    };
+  }, [selectedOccasion]);
+
+  const apiOutfit =
+    dailyRecommendation?.recommendations[0]?.outfit;
+  const recommendedOutfit = apiOutfit
+    ? {
+        name: [
+          itemLabel(apiOutfit.top || apiOutfit.dress),
+          itemLabel(apiOutfit.bottom),
+        ]
+          .filter(Boolean)
+          .join(' + '),
+        description: `Recommended for ${selectedOccasion.replace('-', ' ')} using items from your closet.`,
+        top: itemLabel(apiOutfit.top || apiOutfit.dress),
+        bottom: itemLabel(apiOutfit.bottom),
+        shoes: itemLabel(apiOutfit.footwear),
+        accessory: itemLabel(apiOutfit.accessory),
+      }
+    : null;
+
   const currentOutfit =
+    recommendedOutfit ||
     outfitMap[selectedVibe]?.[selectedOccasion] ||
     outfitMap.ethnic.presentation;
 
@@ -436,6 +544,8 @@ export default function HomeScreen() {
       evening,
       feminine,
     }[selectedVibe] ?? ethnic;
+
+  const temperature = dailyRecommendation?.weather?.temperature;
 
   function selectVibe(vibe: string) {
     setSelectedVibe(vibe);
@@ -478,18 +588,33 @@ export default function HomeScreen() {
 
               <View style={styles.headerWeather}>
                 <ThemedText style={styles.weatherText}>
-                  PARIS
+                  LOCAL WEATHER
                 </ThemedText>
 
                 <ThemedText style={styles.weatherTemperature}>
-                  19°C
+                  {typeof temperature === 'number'
+                    ? `${Math.round(temperature)}°C`
+                    : '--'}
                 </ThemedText>
               </View>
             </View>
 
             <ThemedText style={styles.subtitle}>
-              Your stylist has styled an outfit for your day in Paris.
+              Your stylist builds recommendations from your closet and local weather.
             </ThemedText>
+            {recommendationLoading && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                <ActivityIndicator size="small" color="#745a38" />
+                <Text style={{ color: '#745a38', marginLeft: 8 }}>
+                  Finding a look from your closet...
+                </Text>
+              </View>
+            )}
+            {recommendationError && (
+              <Text style={{ color: '#9b3030', marginTop: 10 }}>
+                Personalized recommendation unavailable: {recommendationError}
+              </Text>
+            )}
           </View>
 
           {/* ================================================= */}
@@ -546,6 +671,48 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionKicker}>OCCASION</Text>
+                <Text style={styles.sectionTitle}>Where are you going?</Text>
+              </View>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {occasions.map((occasion) => {
+                const selected = selectedOccasion === occasion.id;
+                return (
+                  <Pressable
+                    key={occasion.id}
+                    onPress={() => selectOccasion(occasion.id)}
+                    style={[
+                      styles.vibeChip,
+                      selected && styles.vibeChipSelected,
+                    ]}
+                  >
+                    <SymbolView
+                      name={occasion.icon}
+                      size={15}
+                      tintColor={selected ? '#ffffff' : '#745a38'}
+                    />
+                    <Text
+                      style={[
+                        styles.vibeText,
+                        selected && styles.vibeTextSelected,
+                      ]}
+                    >
+                      {occasion.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
           {/* ================================================= */}
           {/* TODAY'S LOOK */}
           {/* ================================================= */}
@@ -570,7 +737,7 @@ export default function HomeScreen() {
                 />
 
                 <Text style={styles.aiBadgeText}>
-                  CURATED
+                  {recommendedOutfit ? 'AI CURATED' : 'SAMPLE LOOK'}
                 </Text>
               </View>
             </View>

@@ -29,6 +29,8 @@ class RecommendationState(TypedDict, total=False):
 
     weather_context: dict[str, Any]
 
+    weather_error: str
+
     # -----------------------------
     # RETRIEVAL
     # -----------------------------

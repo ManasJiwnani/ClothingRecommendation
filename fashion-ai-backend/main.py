@@ -1,4 +1,7 @@
 import os
+import logging
+
+import httpx
 # ==================================================
 # SSL
 # ==================================================
@@ -64,6 +67,7 @@ from services.weather_context import get_weather_context
 # ==================================================
 
 from services.retrieval import retrieve_clothes
+from services.recommendation_service import filter_clothes
 from services.outfit_builder import build_outfits
 from services.outfit_ranker import rank_outfits
 
@@ -72,6 +76,8 @@ from graph.workflow import recommendation_graph
 from services.deafult_recom import create_default_intent
 
 from services.outfit_swap import rank_swap_candidates
+
+logger = logging.getLogger(__name__)
 
 from services.layer_service import (
     # is_layer_item,
@@ -475,6 +481,10 @@ async def recommend(
                 "weather_context"
             ),
 
+            "weather_error": result.get(
+                "weather_error"
+            ),
+
             "retrieved_clothes": len(
                 result.get(
                     "clothes",
@@ -563,10 +573,30 @@ async def daily_recommendation(
         # College + rain → avoid unsuitable footwear
         # ==================================================
 
-        weather = await get_current_weather(
-            request.latitude,
-            request.longitude
-        )
+        weather_error = None
+        try:
+            weather = await get_current_weather(
+                request.latitude,
+                request.longitude
+            )
+            weather_context = get_weather_context(
+                weather
+            )
+        except httpx.HTTPError:
+            logger.warning(
+                "Live weather is unavailable for daily recommendations.",
+                exc_info=True
+            )
+            weather = None
+            weather_error = (
+                "Live weather is temporarily unavailable. "
+                "This outfit is based on your closet and selected occasion."
+            )
+            weather_context = get_weather_context({
+                "temperature": 25,
+                "rain": 0,
+                "weather_code": None,
+            })
 
         print("\n===== WEATHER =====")
         print(weather)
@@ -575,10 +605,6 @@ async def daily_recommendation(
         # ==================================================
         # 3. WEATHER CONTEXT
         # ==================================================
-
-        weather_context = get_weather_context(
-            weather
-        )
 
         print("\n===== WEATHER CONTEXT =====")
         print(weather_context)
@@ -763,6 +789,8 @@ async def daily_recommendation(
             "weather": weather,
 
             "weather_context": weather_context,
+
+            "weather_error": weather_error,
 
             "intent": (
                 intent.model_dump()

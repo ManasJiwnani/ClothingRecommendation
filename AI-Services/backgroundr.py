@@ -12,6 +12,7 @@ Output:
 """
 
 import io
+import os
 from typing import Dict
 
 import numpy as np
@@ -19,6 +20,7 @@ import torch
 import truststore
 
 truststore.inject_into_ssl()
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "300")
 
 from PIL import Image, ImageFilter
 from transformers import (

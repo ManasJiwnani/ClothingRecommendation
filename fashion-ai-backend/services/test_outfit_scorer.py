@@ -4,6 +4,24 @@ from services.outfit_scorer import score_outfit
 
 
 class OutfitScorerTests(unittest.TestCase):
+    def test_score_outfit_with_null_user_preference_lists(self):
+        outfit = {
+            "type": "separates",
+            "top": {"category": "top", "color": "white"},
+            "bottom": {"category": "bottom", "color": "blue"},
+        }
+        intent = {
+            "user_preferences": {
+                "style_preferences": None,
+                "color_palette": None,
+                "pattern_preferences": None,
+            }
+        }
+
+        result = score_outfit(outfit, intent)
+
+        self.assertIsInstance(result, (int, float))
+
     def test_score_outfit_with_weather_sensitive_intent(self):
         outfit = {
             "type": "separates",
@@ -45,5 +63,5 @@ class OutfitScorerTests(unittest.TestCase):
 
         result = score_outfit(outfit, intent, weather)
 
-        self.assertIsInstance(result, float)
+        self.assertIsInstance(result, (int, float))
         self.assertGreaterEqual(result, 0)

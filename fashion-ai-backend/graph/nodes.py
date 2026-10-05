@@ -1,3 +1,7 @@
+import logging
+
+import httpx
+
 from services.weather import get_current_weather
 from services.weather_context import get_weather_context
 
@@ -9,6 +13,8 @@ from services.outfit_builder import build_outfits
 from services.outfit_ranker import rank_outfits
 
 from graph.state import RecommendationState
+
+logger = logging.getLogger(__name__)
 
 
 # =========================================================
@@ -51,10 +57,24 @@ async def weather_node(
     print("Longitude:", longitude)
 
     # Get current weather
-    weather = await get_current_weather(
-        latitude,
-        longitude
-    )
+    try:
+        weather = await get_current_weather(
+            latitude,
+            longitude
+        )
+    except httpx.HTTPError:
+        logger.warning(
+            "Live weather is unavailable for this recommendation request.",
+            exc_info=True
+        )
+        return {
+            "weather": None,
+            "weather_context": None,
+            "weather_error": (
+                "Live weather is temporarily unavailable. "
+                "These outfit recommendations are based on your style query and closet."
+            )
+        }
 
     # Convert weather into categories
     weather_context = get_weather_context(
@@ -66,7 +86,8 @@ async def weather_node(
 
     return {
         "weather": weather,
-        "weather_context": weather_context
+        "weather_context": weather_context,
+        "weather_error": None
     }
 
 

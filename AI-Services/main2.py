@@ -4196,9 +4196,6 @@ async def startup_event():
 # LOCAL RUN
 
 # ============================================================
-
-
-
 if __name__ == "__main__":
 
 
@@ -4209,13 +4206,12 @@ if __name__ == "__main__":
 
     uvicorn.run(
 
-        "main:app",
+        "main2:app",
 
-        host="0.0.0.0",
+        host="127.0.0.1",
 
-        port=8000,
+        port=8001,
 
         reload=True,
 
     ) 
-

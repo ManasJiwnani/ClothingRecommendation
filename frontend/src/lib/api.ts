@@ -1,47 +1,49 @@
-// const API_URL = process.env.EXPO_PUBLIC_API_URL;
+import { API_BASE_URL } from "../constants/api";
+import { Platform } from "react-native";
 
-// if (!API_URL) {
-//   throw new Error("EXPO_PUBLIC_API_URL is not configured");
-// }
+const FASHION_API_URL = (
+  process.env.EXPO_PUBLIC_FASHION_API_URL ||
+  (Platform.OS === "web" ? process.env.EXPO_PUBLIC_API_URL : undefined) ||
+  API_BASE_URL
+).replace(/\/+$/, "");
 
-// export async function apiFetch(
-//   endpoint: string,
-//   options: RequestInit = {}
-// ) {
-//   const response = await fetch(`${API_URL}${endpoint}`, {
-//     ...options,
-//     headers: {
-//       "Content-Type": "application/json",
-//       ...(options.headers || {}),
-//     },
-//   });
+function defaultAiApiUrl() {
+  const url = new URL(FASHION_API_URL);
+  url.port = "8001";
+  return url.origin;
+}
 
-//   const data = await response.json();
+const AI_API_URL =
+  process.env.EXPO_PUBLIC_AI_API_URL || defaultAiApiUrl();
 
-//   if (!response.ok) {
-//     throw new Error(data.detail || "API request failed");
-//   }
+function isValidationError(
+  value: unknown
+): value is { loc: unknown; msg: unknown } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "loc" in value &&
+    "msg" in value
+  );
+}
 
-//   return data;
-// }
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-export async function apiFetch(
+async function request<T>(
+  baseUrl: string,
   endpoint: string,
   options: RequestInit = {}
-) {
-  const response = await fetch(`${API_URL}${endpoint}`, {
+): Promise<T> {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(options.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
       ...(options.headers || {}),
     },
   });
 
   const text = await response.text();
-
-  let data;
+  let data: unknown = null;
 
   try {
     data = text ? JSON.parse(text) : null;
@@ -50,12 +52,46 @@ export async function apiFetch(
   }
 
   if (!response.ok) {
-    throw new Error(
-      typeof data === "object" && data?.detail
+    const detail =
+      typeof data === "object" && data !== null && "detail" in data
         ? data.detail
-        : "API request failed"
-    );
+        : data;
+    const validationErrors = Array.isArray(detail)
+      ? detail.filter(isValidationError).map(({ loc, msg }) => {
+          const location = Array.isArray(loc)
+            ? loc
+                .filter(
+                  (part): part is string | number =>
+                    typeof part === "string" || typeof part === "number"
+                )
+                .join(".")
+            : "request";
+          return `${location}: ${String(msg)}`;
+        })
+      : null;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : validationErrors?.length
+          ? validationErrors.join("; ")
+        : response.statusText || "API request failed";
+
+    throw new Error(message);
   }
 
-  return data;
+  return data as T;
+}
+
+export function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+) {
+  return request<T>(FASHION_API_URL, endpoint, options);
+}
+
+export function aiApiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+) {
+  return request<T>(AI_API_URL, endpoint, options);
 }

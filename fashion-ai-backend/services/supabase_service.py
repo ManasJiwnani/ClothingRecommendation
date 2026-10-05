@@ -207,7 +207,7 @@ def like_outfit(user_id: str, outfit: dict):
 
     response = (
         supabase
-        .table("liked_outfits")
+        .table("saved_outfits")
         .insert(data)
         .execute()
     )
@@ -222,7 +222,7 @@ def get_liked_outfits(user_id: str):
 
     response = (
         supabase
-        .table("liked_outfits")
+        .table("saved_outfits")
         .select("*")
         .eq("user_id", user_id)
         .order("created_at", desc=True)

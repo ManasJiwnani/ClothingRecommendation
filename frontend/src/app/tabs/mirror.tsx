@@ -1,4 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { getCurrentCoordinates } from '../../services/location';
+import { embedFashionQuery } from '../../services/ai-stylist';
+import {
+  getLayerRecommendations,
+  getLikedOutfits,
+  getRecommendations,
+  likeOutfit,
+  swapOutfitItem,
+} from '../../services/recommendation';
 import {
   View,
   Text,
@@ -9,13 +19,12 @@ import {
   Image,
   ActivityIndicator,
   FlatList,
-  Dimensions,
+  Alert,
+  useWindowDimensions,
 } from 'react-native';
 // import ThemedText from '@/components/themed-text';
-import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
+import { aiApiFetch } from '../../lib/api';
 
 // =========================================================
 // ASSETS
@@ -30,8 +39,9 @@ const WOMAN_IMAGE = require('../../assets/woman.png');
 type ClothingItem = {
   id: string;
   name: string;
-  category: 'top' | 'bottom' | 'accessory';
+  category: string;
   image: any;
+  raw: Record<string, unknown>;
 };
 
 type Outfit = {
@@ -40,89 +50,96 @@ type Outfit = {
   occasion: string;
   vibe: string;
   top: ClothingItem;
-  bottom: ClothingItem;
+  bottom?: ClothingItem;
+  footwear?: ClothingItem;
+  raw: Record<string, unknown>;
 };
 
-// =========================================================
-// CLOTHING
-// =========================================================
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
-const TOPS: ClothingItem[] = [
-  {
-    id: 'top1',
-    name: 'Black Top',
-    category: 'top',
-    image: require('../../assets/clothes/top1.png'),
-  },
-  {
-    id: 'top2',
-    name: 'Statement Top',
-    category: 'top',
-    image: require('../../assets/clothes/outfit1.png'),
-  },
-];
+function toClothingItem(value: unknown): ClothingItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
 
-const BOTTOMS: ClothingItem[] = [
-  {
-    id: 'bottom1',
-    name: 'Blue Jeans',
-    category: 'bottom',
-    image: require('../../assets/clothes/pant.png'),
-  },
-];
+  const id = value.id;
+  const imageUrl = value.image_url;
+  const name =
+    [value.color, value.subcategory || value.category]
+      .filter((part): part is string => typeof part === 'string' && !!part)
+      .join(' ') || 'Closet item';
 
-// =========================================================
-// TOP-K DEMO OUTFITS
-// =========================================================
+  return {
+    id: id === undefined || id === null ? name : String(id),
+    name,
+    category: typeof value.category === 'string' ? value.category : 'clothing',
+    image: typeof imageUrl === 'string' && imageUrl ? { uri: imageUrl } : null,
+    raw: value,
+  };
+}
 
-const TOP_K_OUTFITS: Outfit[] = [
-  {
-    id: 'outfit1',
-    title: 'Smart Casual',
-    occasion: 'Everyday',
-    vibe: 'Minimal',
-    top: TOPS[0],
-    bottom: BOTTOMS[0],
-  },
-  {
-    id: 'outfit2',
-    title: 'Presentation Ready',
-    occasion: 'Office',
-    vibe: 'Polished',
-    top: TOPS[1],
-    bottom: BOTTOMS[0],
-  },
-  {
-    id: 'outfit3',
-    title: 'Weekend Look',
-    occasion: 'Weekend',
-    vibe: 'Relaxed',
-    top: TOPS[0],
-    bottom: BOTTOMS[0],
-  },
-  {
-    id: 'outfit4',
-    title: 'City Chic',
-    occasion: 'Outing',
-    vibe: 'Trendy',
-    top: TOPS[1],
-    bottom: BOTTOMS[0],
-  },
-  {
-    id: 'outfit5',
-    title: 'Effortless Style',
-    occasion: 'Casual',
-    vibe: 'Comfortable',
-    top: TOPS[0],
-    bottom: BOTTOMS[0],
-  },
-];
+function toOutfit(value: unknown): Outfit | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const storedOutfit = isRecord(value.outfit) ? value.outfit : value;
+  const raw = isRecord(storedOutfit.outfit)
+    ? storedOutfit.outfit
+    : storedOutfit;
+  const top = toClothingItem(raw.top || raw.dress);
+  const bottom = toClothingItem(raw.bottom);
+  const footwear = toClothingItem(raw.footwear);
+
+  if (!top) {
+    return null;
+  }
+
+  const title =
+    typeof storedOutfit.title === 'string'
+      ? storedOutfit.title
+      : [top.name, bottom?.name, footwear?.name]
+          .filter(Boolean)
+          .join(' + ');
+
+  return {
+    id: `${top.id}-${bottom?.id || 'single'}-${footwear?.id || 'no-footwear'}`,
+    title,
+    occasion:
+      typeof storedOutfit.occasion === 'string'
+        ? storedOutfit.occasion
+        : 'Personalized',
+    vibe:
+      typeof storedOutfit.vibe === 'string'
+        ? storedOutfit.vibe
+        : 'AI curated',
+    top,
+    bottom: bottom || undefined,
+    footwear: footwear || undefined,
+    raw: {
+      title,
+      occasion:
+        typeof storedOutfit.occasion === 'string'
+          ? storedOutfit.occasion
+          : 'Personalized',
+      vibe:
+        typeof storedOutfit.vibe === 'string'
+          ? storedOutfit.vibe
+          : 'AI curated',
+      outfit: raw,
+    },
+  };
+}
 
 // =========================================================
 // MAIN COMPONENT
 // =========================================================
 
 export default function MirrorScreen() {
+  const { width: screenWidth } = useWindowDimensions();
+  const outfitCardWidth = Math.max(0, screenWidth - 40);
 
   // =======================================================
   // FLOW STATE
@@ -135,6 +152,16 @@ export default function MirrorScreen() {
 
   const [command, setCommand] =
     useState('');
+
+  const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [weatherNotice, setWeatherNotice] = useState<string | null>(null);
+
+  const [layerOptions, setLayerOptions] = useState<ClothingItem[]>([]);
+  const [swapOptions, setSwapOptions] = useState<ClothingItem[]>([]);
+  const [swapCategory, setSwapCategory] = useState<string | null>(null);
+
+  const [isLoadingLayers, setIsLoadingLayers] = useState(false);
+  const [isLoadingSwaps, setIsLoadingSwaps] = useState(false);
 
   // =======================================================
   // CAROUSEL
@@ -188,9 +215,13 @@ export default function MirrorScreen() {
     useState(false);
 
   const [tryOnResult, setTryOnResult] =
-    useState(false);
+    useState<string | null>(null);
+
+  const [tryOnError, setTryOnError] =
+    useState<string | null>(null);
+
+  const tryOnRequestId = useRef(0);
   
-  const router = useRouter();
   // =======================================================
   // ADD LAYER
   // =======================================================
@@ -202,14 +233,121 @@ export default function MirrorScreen() {
   // CURRENT OUTFIT
   // =======================================================
 
-  const currentOutfit =
-    TOP_K_OUTFITS[currentOutfitIndex];
+  const currentOutfit = outfits[currentOutfitIndex];
+
+  const generateVirtualTryOn = async (
+    top: ClothingItem | null,
+    bottom: ClothingItem | null,
+    footwear: ClothingItem | null
+  ) => {
+    const requestId = ++tryOnRequestId.current;
+    const imageUrl = (item: ClothingItem | null) =>
+      item &&
+      isRecord(item.image) &&
+      typeof item.image.uri === 'string'
+        ? item.image.uri
+        : null;
+    const topUrl = imageUrl(top);
+    const bottomUrl = imageUrl(bottom);
+    const footwearUrl = imageUrl(footwear);
+
+    if (!topUrl && !bottomUrl && !footwearUrl) {
+      setTryOnResult(null);
+      setTryOnError('This outfit has no available clothing images to try on.');
+      setIsTryingOn(false);
+      return;
+    }
+
+    setIsTryingOn(true);
+    setTryOnResult(null);
+    setTryOnError(null);
+
+    try {
+      const response = await aiApiFetch<{ image_url: string }>(
+        '/virtual-try-on',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            top: topUrl,
+            bottom: bottomUrl,
+            shoes: footwearUrl,
+          }),
+        }
+      );
+
+      if (requestId !== tryOnRequestId.current) {
+        return;
+      }
+
+      if (!response.image_url) {
+        throw new Error('The virtual try-on service returned no image.');
+      }
+
+      setTryOnResult(response.image_url);
+    } catch (error) {
+      if (requestId !== tryOnRequestId.current) {
+        return;
+      }
+
+      console.error('Failed to create virtual try-on:', error);
+      setTryOnError(
+        error instanceof Error
+          ? error.message
+          : 'Could not create the virtual try-on. Please try again.'
+      );
+    } finally {
+      if (requestId === tryOnRequestId.current) {
+        setIsTryingOn(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadLikedOutfits = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (error) {
+          throw error;
+        }
+        if (!user) {
+          return;
+        }
+
+        const response = await getLikedOutfits(user.id);
+        if (isActive) {
+          setLikedOutfits(
+            response.outfits
+              .map((outfit) => toOutfit(outfit))
+              .filter((outfit): outfit is Outfit => outfit !== null)
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load saved outfits:', error);
+        if (isActive) {
+          Alert.alert(
+            'Could not load saved looks',
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        }
+      }
+    };
+
+    void loadLikedOutfits();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // =======================================================
   // PROMPT
   // =======================================================
 
-  const handleCommand = () => {
+  const handleCommand = async () => {
 
     const trimmedCommand =
       command.trim();
@@ -221,15 +359,10 @@ export default function MirrorScreen() {
       return;
     }
 
-    console.log(
-      'AI Stylist prompt:',
-      trimmedCommand
-    );
-
     // Reset recommendation flow
-    setLikedOutfits([]);
-
     setCurrentOutfitIndex(0);
+    setOutfits([]);
+    setWeatherNotice(null);
 
     setSelectedOutfit(null);
 
@@ -245,22 +378,63 @@ export default function MirrorScreen() {
 
     setShowTryOn(false);
 
-    setTryOnResult(false);
+    setTryOnResult(null);
+    setTryOnError(null);
 
     setIsTryingOn(false);
 
     setIsGenerating(true);
 
-    // DEMO API DELAY
-    setTimeout(() => {
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) {
+        throw authError;
+      }
+      if (!user) {
+        throw new Error('Sign in to get outfit recommendations.');
+      }
 
+      const location = await getCurrentCoordinates();
+      const query = await embedFashionQuery(trimmedCommand);
+      if (
+        query.embedding_dimensions !== 768 ||
+        query.embedding.length !== 768
+      ) {
+        throw new Error('The AI service returned an invalid query embedding.');
+      }
+
+      const response = await getRecommendations(
+        user.id,
+        query.embedding,
+        query.intent,
+        location.latitude,
+        location.longitude
+      );
+      const recommendations = response.recommendations
+        .map((recommendation) => toOutfit(recommendation))
+        .filter((outfit): outfit is Outfit => outfit !== null);
+      if (recommendations.length === 0) {
+        throw new Error(
+          'No matching outfits were found. Add more items to your closet and try again.'
+        );
+      }
+
+      setOutfits(recommendations);
+      setWeatherNotice(response.weather_error ?? null);
       setHasPrompt(true);
-
-      setIsGenerating(false);
-
       setCommand('');
-
-    }, 1000);
+    } catch (error) {
+      console.error('Failed to generate outfit recommendations:', error);
+      Alert.alert(
+        'Could not generate looks',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   // =======================================================
@@ -271,7 +445,7 @@ export default function MirrorScreen() {
 
     if (
       currentOutfitIndex <
-      TOP_K_OUTFITS.length - 1
+      outfits.length - 1
     ) {
 
       setCurrentOutfitIndex(
@@ -302,35 +476,38 @@ export default function MirrorScreen() {
   // LIKE / UNLIKE OUTFIT
   // =======================================================
 
-  const toggleLikeOutfit = (
-    outfit: Outfit
-  ) => {
+  const toggleLikeOutfit = async (outfit: Outfit) => {
+    if (isOutfitLiked(outfit)) {
+      return;
+    }
 
-    setLikedOutfits(previous => {
-
-      const alreadyLiked =
-        previous.some(
-          item =>
-            item.id === outfit.id
-        );
-
-      // UNLIKE
-      if (alreadyLiked) {
-
-        return previous.filter(
-          item =>
-            item.id !== outfit.id
-        );
-
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (error) {
+        throw error;
+      }
+      if (!user) {
+        throw new Error('Sign in to save an outfit.');
       }
 
-      // LIKE
-      return [
+      await likeOutfit(user.id, outfit.raw);
+      setLikedOutfits((previous) => [
+        {
+          ...outfit,
+          id: outfit.id,
+        },
         ...previous,
-        outfit,
-      ];
-
-    });
+      ]);
+    } catch (error) {
+      console.error('Failed to save outfit:', error);
+      Alert.alert(
+        'Could not save look',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    }
   };
 
   // =======================================================
@@ -363,23 +540,21 @@ export default function MirrorScreen() {
     );
 
     setSelectedBottom(
-      outfit.bottom
+      outfit.bottom || null
     );
 
     setAdditionalLayer(null);
 
     setShowLayerOptions(false);
 
-    setTryOnResult(false);
-
-    setIsTryingOn(true);
+    setShowTryOn(true);
 
     setShowLikedLooks(false);
-
-    setTimeout(() => {
-      setIsTryingOn(false);
-      setTryOnResult(true);
-  }, 1800);
+    void generateVirtualTryOn(
+      outfit.top,
+      outfit.bottom || null,
+      outfit.footwear || null
+    );
 
   };
 
@@ -392,8 +567,171 @@ export default function MirrorScreen() {
   ) => {
 
     setAdditionalLayer(item);
+    setSelectedOutfit((current) =>
+      current
+        ? {
+            ...current,
+            raw: {
+              ...current.raw,
+              additional_layer: item.raw,
+            },
+          }
+        : current
+    );
 
     setShowLayerOptions(false);
+  };
+
+  const loadSwapOptions = async (category: 'top' | 'bottom') => {
+    const targetOutfit = selectedOutfit || currentOutfit;
+    if (!targetOutfit || isLoadingSwaps) {
+      return;
+    }
+
+    try {
+      setIsLoadingSwaps(true);
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (error) {
+        throw error;
+      }
+      if (!user) {
+        throw new Error('Sign in to get outfit alternatives.');
+      }
+
+      const rawOutfit = targetOutfit.raw.outfit;
+      if (!isRecord(rawOutfit)) {
+        throw new Error('The selected outfit is missing its wardrobe data.');
+      }
+      const currentItem = rawOutfit[category];
+      if (!isRecord(currentItem)) {
+        throw new Error(`There is no ${category} to replace in this outfit.`);
+      }
+      const lockedItems = ['top', 'bottom', 'footwear', 'dress']
+        .filter((key) => key !== category)
+        .map((key) => rawOutfit[key])
+        .filter(isRecord);
+      const response = await swapOutfitItem(
+        user.id,
+        category,
+        currentItem.id === undefined ? undefined : String(currentItem.id),
+        lockedItems
+      );
+      const alternatives = response.alternatives
+        .map((item) => toClothingItem(item))
+        .filter((item): item is ClothingItem => item !== null);
+
+      setSwapCategory(category);
+      setSwapOptions(alternatives);
+      if (alternatives.length === 0) {
+        Alert.alert(
+          'No alternatives found',
+          `Add more ${category} items to your closet and try again.`
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load outfit alternatives:', error);
+      Alert.alert(
+        'Could not load alternatives',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setIsLoadingSwaps(false);
+    }
+  };
+
+  const applySwap = (item: ClothingItem) => {
+    if (!selectedOutfit || !swapCategory) {
+      return;
+    }
+
+    const nextOutfit = {
+      ...selectedOutfit,
+      ...(swapCategory === 'top' ? { top: item } : { bottom: item }),
+      raw: {
+        ...selectedOutfit.raw,
+        outfit: {
+          ...(isRecord(selectedOutfit.raw.outfit)
+            ? selectedOutfit.raw.outfit
+            : {}),
+          [swapCategory]: item.raw,
+        },
+      },
+    };
+    setSelectedOutfit(nextOutfit);
+    setSelectedTop(nextOutfit.top);
+    setSelectedBottom(nextOutfit.bottom || null);
+    setSwapOptions([]);
+    setSwapCategory(null);
+  };
+
+  const loadLayerOptions = async () => {
+    const targetOutfit = selectedOutfit || currentOutfit;
+    if (!targetOutfit || isLoadingLayers) {
+      return;
+    }
+
+    try {
+      setIsLoadingLayers(true);
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (error) {
+        throw error;
+      }
+      if (!user) {
+        throw new Error('Sign in to get layer recommendations.');
+      }
+
+      const outfitItems = [
+        targetOutfit.raw.outfit,
+      ].flatMap((outfit) => {
+        if (!isRecord(outfit)) {
+          return [];
+        }
+        return ['top', 'bottom', 'footwear', 'dress']
+          .map((key) => outfit[key])
+          .filter(isRecord)
+          .map((item) => item.id)
+          .filter(
+            (id): id is string | number =>
+              typeof id === 'string' || typeof id === 'number'
+          )
+          .map(String);
+      });
+      const response = await getLayerRecommendations(user.id, outfitItems);
+      const recommendations = response.layer_recommendations
+        .map((item) =>
+          toClothingItem(
+            isRecord(item.item)
+              ? item.item
+              : isRecord(item.clothing)
+                ? item.clothing
+                : item
+          )
+        )
+        .filter((item): item is ClothingItem => item !== null);
+
+      setLayerOptions(recommendations);
+      setShowLayerOptions(true);
+      if (recommendations.length === 0) {
+        Alert.alert(
+          'No layers available',
+          'Add outerwear or layering pieces to your closet first.'
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load layer recommendations:', error);
+      Alert.alert(
+        'Could not load layers',
+        error instanceof Error ? error.message : 'Please try again.'
+      );
+    } finally {
+      setIsLoadingLayers(false);
+    }
   };
 
   // =======================================================
@@ -401,31 +739,26 @@ export default function MirrorScreen() {
   // =======================================================
 
   const handleTryOn = (outfit: Outfit) => {
-  setSelectedOutfit(outfit);
-
-  setSelectedTop(outfit.top);
-  setSelectedBottom(outfit.bottom);
-  setAdditionalLayer(null);
-
-  setShowLayerOptions(false);
-  setShowLikedLooks(false);
-
-  // Start virtual try-on immediately
-  setIsTryingOn(true);
-  setTryOnResult(false);
-
-  // DEMO ONLY
-  setTimeout(() => {
-    setIsTryingOn(false);
-    setTryOnResult(true);
-  }, 1800);
-};
+    setSelectedOutfit(outfit);
+    setSelectedTop(outfit.top);
+    setSelectedBottom(outfit.bottom || null);
+    setAdditionalLayer(null);
+    setShowLayerOptions(false);
+    setShowLikedLooks(false);
+    setShowTryOn(true);
+    void generateVirtualTryOn(
+      outfit.top,
+      outfit.bottom || null,
+      outfit.footwear || null
+    );
+  };
 
   // =======================================================
   // BACK TO RECOMMENDATIONS
   // =======================================================
 
   const backToRecommendations = () => {
+    tryOnRequestId.current += 1;
 
     setSelectedOutfit(null);
 
@@ -437,7 +770,8 @@ export default function MirrorScreen() {
 
     setShowLayerOptions(false);
 
-    setTryOnResult(false);
+    setTryOnResult(null);
+    setTryOnError(null);
 
     setIsTryingOn(false);
 
@@ -451,6 +785,7 @@ export default function MirrorScreen() {
   // =======================================================
 
   const restartStyling = () => {
+    tryOnRequestId.current += 1;
 
     setHasPrompt(false);
 
@@ -460,7 +795,10 @@ export default function MirrorScreen() {
 
     setCurrentOutfitIndex(0);
 
-    setLikedOutfits([]);
+    setOutfits([]);
+    setLayerOptions([]);
+    setSwapOptions([]);
+    setSwapCategory(null);
 
     setShowLikedLooks(false);
 
@@ -478,7 +816,8 @@ export default function MirrorScreen() {
 
     setIsTryingOn(false);
 
-    setTryOnResult(false);
+    setTryOnResult(null);
+    setTryOnError(null);
   };
 
   // =======================================================
@@ -498,8 +837,7 @@ export default function MirrorScreen() {
 
       <View
         style={{
-          width:
-            SCREEN_WIDTH - 40,
+          width: outfitCardWidth,
         }}
       >
 
@@ -521,24 +859,28 @@ export default function MirrorScreen() {
           >
 
             <Image
-              source={
-                item.top.image
-              }
+              source={item.top.image || undefined}
               style={
                 styles.cardTop
               }
               resizeMode="contain"
             />
 
-            <Image
-              source={
-                item.bottom.image
-              }
-              style={
-                styles.cardBottom
-              }
-              resizeMode="contain"
-            />
+            {item.bottom?.image && (
+              <Image
+                source={item.bottom.image}
+                style={styles.cardBottom}
+                resizeMode="contain"
+              />
+            )}
+
+            {item.footwear?.image && (
+              <Image
+                source={item.footwear.image}
+                style={styles.cardFootwear}
+                resizeMode="contain"
+              />
+            )}
 
             {/* ========================================== */}
             {/* LIKE BUTTON */}
@@ -645,15 +987,7 @@ export default function MirrorScreen() {
               {/* TRY IT BUTTON */}
               {/* ======================================== */}
               <Pressable
-                onPress={() => {
-                  router.push({
-                    pathname: '/try_on' as any,
-                    params: {
-                      top: selectedTop?.image?.uri ?? '',
-                      bottom: selectedBottom?.image?.uri ?? '',
-                    },
-                  });
-                }}
+                onPress={() => handleTryOn(item)}
                 style={styles.tryOnButton}
               >
                 <SymbolView
@@ -695,13 +1029,13 @@ export default function MirrorScreen() {
     const index =
       Math.round(
         offsetX /
-          SCREEN_WIDTH
+          outfitCardWidth
       );
 
     if (
       index >= 0 &&
       index <
-        TOP_K_OUTFITS.length
+        outfits.length
     ) {
 
       setCurrentOutfitIndex(
@@ -888,67 +1222,59 @@ export default function MirrorScreen() {
               }
             >
 
-              {/* MODEL */}
-
-              <Image
-                source={
-                  WOMAN_IMAGE
-                }
-                style={
-                  styles.modelImage
-                }
-                resizeMode="contain"
-              />
-
-              {/* TOP */}
-
-              {selectedTop && (
-
+              {tryOnResult ? (
                 <Image
-                  source={
-                    selectedTop.image
-                  }
-                  style={
-                    styles.mirrorTop
-                  }
+                  source={{ uri: tryOnResult }}
+                  style={styles.generatedTryOnImage}
                   resizeMode="contain"
                 />
+              ) : (
+                <>
+                  <Image
+                    source={WOMAN_IMAGE}
+                    style={styles.modelImage}
+                    resizeMode="contain"
+                  />
 
-              )}
+                  {selectedTop?.image && (
+                    <Image
+                      source={selectedTop.image}
+                      style={styles.mirrorTop}
+                      resizeMode="contain"
+                    />
+                  )}
 
-              {/* BOTTOM */}
+                  {selectedBottom?.image && (
+                    <Image
+                      source={selectedBottom.image}
+                      style={styles.mirrorBottom}
+                      resizeMode="contain"
+                    />
+                  )}
 
-              {selectedBottom && (
-
-                <Image
-                  source={
-                    selectedBottom.image
-                  }
-                  style={
-                    styles.mirrorBottom
-                  }
-                  resizeMode="contain"
-                />
-
-              )}
-
-              {/* ADDITIONAL LAYER */}
-
-              {additionalLayer && (
-
-                <Image
-                  source={
-                    additionalLayer.image
-                  }
-                  style={
-                    styles.mirrorLayer
-                  }
-                  resizeMode="contain"
-                />
-
+                  {additionalLayer?.image && (
+                    <Image
+                      source={additionalLayer.image}
+                      style={styles.mirrorLayer}
+                      resizeMode="contain"
+                    />
+                  )}
+                </>
               )}
 
             </View>
+
+            {isTryingOn && (
+              <Text style={styles.tryOnStatus} selectable>
+                Generating your virtual try-on...
+              </Text>
+            )}
+
+            {tryOnError && (
+              <Text style={styles.tryOnError} selectable>
+                {tryOnError}
+              </Text>
+            )}
 
             {/* OUTFIT INFO */}
 
@@ -978,15 +1304,60 @@ export default function MirrorScreen() {
 
             </View>
 
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => loadSwapOptions('top')}
+                disabled={isLoadingSwaps}
+                style={styles.addLayerButton}
+              >
+                <Text style={styles.addLayerButtonText}>
+                  {isLoadingSwaps && swapCategory === 'top'
+                    ? 'Finding...'
+                    : 'Swap top'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => loadSwapOptions('bottom')}
+                disabled={isLoadingSwaps || !selectedOutfit.bottom}
+                style={styles.addLayerButton}
+              >
+                <Text style={styles.addLayerButtonText}>
+                  {isLoadingSwaps && swapCategory === 'bottom'
+                    ? 'Finding...'
+                    : 'Swap bottom'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {swapOptions.length > 0 && (
+              <View style={styles.layerOptions}>
+                <Text style={styles.layerTitle}>
+                  Choose a replacement {swapCategory}
+                </Text>
+                {swapOptions.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => applySwap(item)}
+                    style={styles.layerOption}
+                  >
+                    {item.image && (
+                      <Image
+                        source={item.image}
+                        style={styles.layerOptionImage}
+                        resizeMode="contain"
+                      />
+                    )}
+                    <Text style={styles.layerOptionText}>{item.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             {/* ADD LAYER */}
 
             <Pressable
-              onPress={() =>
-                setShowLayerOptions(
-                  previous =>
-                    !previous
-                )
-              }
+              onPress={loadLayerOptions}
+              disabled={isLoadingLayers}
               style={
                 styles.addLayerButton
               }
@@ -997,7 +1368,7 @@ export default function MirrorScreen() {
                   styles.addLayerButtonText
                 }
               >
-                + Add Layer
+                {isLoadingLayers ? 'Finding layers...' : '+ Add Layer'}
               </Text>
 
             </Pressable>
@@ -1018,7 +1389,7 @@ export default function MirrorScreen() {
                   Add another item
                 </Text>
 
-                {TOPS.map(
+                {layerOptions.map(
                   item => (
 
                     <Pressable
@@ -1035,15 +1406,13 @@ export default function MirrorScreen() {
                       }
                     >
 
-                      <Image
-                        source={
-                          item.image
-                        }
-                        style={
-                          styles.layerOptionImage
-                        }
-                        resizeMode="contain"
-                      />
+                      {item.image && (
+                        <Image
+                          source={item.image}
+                          style={styles.layerOptionImage}
+                          resizeMode="contain"
+                        />
+                      )}
 
                       <Text
                         style={
@@ -1067,7 +1436,7 @@ export default function MirrorScreen() {
             <Pressable
               onPress={() =>
                 handleTryOn(
-                  currentOutfit
+                  selectedOutfit
                 )
               }
               disabled={
@@ -1093,7 +1462,7 @@ export default function MirrorScreen() {
                     styles.tryOnButtonText
                   }
                 >
-                  CREATE TRY-ON
+                  {tryOnError ? 'RETRY TRY-ON' : 'REGENERATE TRY-ON'}
                 </Text>
 
               )}
@@ -1130,6 +1499,7 @@ export default function MirrorScreen() {
       {/* ================================================= */}
 
       {hasPrompt &&
+        currentOutfit &&
         !selectedOutfit &&
         !showLikedLooks &&
         !showTryOn &&
@@ -1175,16 +1545,22 @@ export default function MirrorScreen() {
                 }
               >
                 {currentOutfitIndex + 1}/
-                {TOP_K_OUTFITS.length}
+                {outfits.length}
               </Text>
 
             </View>
+
+            {weatherNotice && (
+              <Text style={styles.weatherNotice} selectable>
+                {weatherNotice}
+              </Text>
+            )}
 
             {/* CAROUSEL */}
 
             <FlatList
               data={
-                TOP_K_OUTFITS
+                outfits
               }
               renderItem={
                 renderOutfit
@@ -1199,7 +1575,7 @@ export default function MirrorScreen() {
                 false
               }
               snapToInterval={
-                SCREEN_WIDTH
+                outfitCardWidth
               }
               decelerationRate="fast"
               onMomentumScrollEnd={
@@ -1218,7 +1594,7 @@ export default function MirrorScreen() {
               }
             >
 
-              {TOP_K_OUTFITS.map(
+              {outfits.map(
                 (_, index) => (
 
                   <View
@@ -1405,24 +1781,20 @@ export default function MirrorScreen() {
                       >
 
                         <Image
-                          source={
-                            outfit.top.image
-                          }
+                          source={outfit.top.image || undefined}
                           style={
                             styles.likedTop
                           }
                           resizeMode="contain"
                         />
 
-                        <Image
-                          source={
-                            outfit.bottom.image
-                          }
-                          style={
-                            styles.likedBottom
-                          }
-                          resizeMode="contain"
-                        />
+                        {outfit.bottom?.image && (
+                          <Image
+                            source={outfit.bottom.image}
+                            style={styles.likedBottom}
+                            resizeMode="contain"
+                          />
+                        )}
 
                       </View>
 
@@ -1456,12 +1828,7 @@ export default function MirrorScreen() {
                           }
                         >
 
-                          <Pressable
-                            onPress={() =>
-                              toggleLikeOutfit(
-                                outfit
-                              )
-                            }
+                          <View
                             style={
                               styles.unlikeButton
                             }
@@ -1475,7 +1842,7 @@ export default function MirrorScreen() {
                               ♥
                             </Text>
 
-                          </Pressable>
+                          </View>
 
                           <Pressable
                             onPress={() =>
@@ -1741,6 +2108,13 @@ const styles = StyleSheet.create({
     color: '#222',
   },
 
+  weatherNotice: {
+    color: '#765A2D',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+
   counterText: {
     fontSize: 13,
     color: '#888',
@@ -1771,15 +2145,23 @@ const styles = StyleSheet.create({
   cardTop: {
     position: 'absolute',
     width: '40%',
-    height: '52%',
-    top: '5%',
+    height: '48%',
+    top: '4%',
   },
 
   cardBottom: {
     position: 'absolute',
-    width: '85%',
-    height: '55%',
-    bottom: '3%',
+    width: '70%',
+    height: '49%',
+    bottom: '5%',
+  },
+
+  cardFootwear: {
+    position: 'absolute',
+    width: '28%',
+    height: '16%',
+    bottom: '2%',
+    right: '6%',
   },
 
   // =======================================================
@@ -2159,6 +2541,25 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
+  generatedTryOnImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  tryOnStatus: {
+    marginTop: 10,
+    color: '#745A38',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+
+  tryOnError: {
+    marginTop: 10,
+    color: '#B42318',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+
   mirrorTop: {
     position: 'absolute',
     width: '55%',
@@ -2389,4 +2790,3 @@ tryOnButtonText: {
 
   
 });
-

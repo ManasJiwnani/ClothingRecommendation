@@ -33,9 +33,10 @@ class FakeAsyncClient:
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
-    async def get(self, url, params):
+    async def get(self, url, params, **kwargs):
         self.url = url
         self.params = params
+        self.request_kwargs = kwargs
         return FakeResponse()
 
 
@@ -54,3 +55,4 @@ class WeatherSSLTests(unittest.TestCase):
         self.assertEqual(result["temperature"], 21.5)
         self.assertIsInstance(fake_client.kwargs.get("verify"), ssl.SSLContext)
         self.assertFalse(fake_client.kwargs.get("verify") is False)
+        self.assertEqual(fake_client.kwargs["timeout"].connect, 20.0)

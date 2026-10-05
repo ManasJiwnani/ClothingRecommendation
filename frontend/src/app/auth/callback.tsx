@@ -64,6 +64,7 @@ export default function AuthCallback() {
           });
 
         router.replace("/onboarding/preferences" as any);
+        // router.replace("/onboarding/name" as any);
         return;
       }
 
@@ -72,6 +73,8 @@ export default function AuthCallback() {
         router.replace("/tabs" as any);
       } else {
         router.replace("/onboarding/preferences" as any);
+        // router.replace("/onboarding/name" as any);
+
       }
 
     } catch (error) {

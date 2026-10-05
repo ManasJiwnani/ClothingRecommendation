@@ -1,10 +1,14 @@
-import { getClothes } from "../../services/clothes";
+import {
+  createClothing,
+  getClothes,
+  type ClothingItem,
+} from "../../services/clothes";
 import { getWeather } from "../../services/weather";
+import { getCurrentCoordinates } from "../../services/location";
 import { supabase } from "../../lib/supabase";
-
+import {processClothingImage,getProcessedImageUrl} from "../../services/add_item";
 import { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 
@@ -25,27 +29,6 @@ import { ThemedText } from "@/components/themed-text";
 import { BottomTabInset, Fonts, Spacing } from "@/constants/theme";
 
 type UploadMode = "single" | "outfit";
-
-type ClothingItem = {
-  id: string;
-  user_id: string;
-  image_url: string;
-  category?: string;
-  clothing_type?: string;
-  subcategory?: string;
-  color?: string;
-  secondary_color?: string;
-  pattern?: string;
-  material?: string;
-  sleeve_type?: string;
-  fit?: string;
-  style?: string;
-  formality?: number;
-  season?: string[];
-  occasions?: string[];
-  embedding?: number[];
-  created_at?: string;
-};
 
 type WeatherData = {
   temperature?: number;
@@ -160,42 +143,19 @@ export default function ClosetScreen() {
 
         const userId = user.id;
 
-        // Ask for location permission
-        const { status } =
-          await Location.requestForegroundPermissionsAsync();
-
-        if (status !== "granted") {
-          console.error(
-            "Location permission was not granted."
-          );
-
-          setWeatherLoading(false);
-          return;
-        }
-
-        // Get current device location
-        const location =
-          await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-
-        const latitude =
-          location.coords.latitude;
-
-        const longitude =
-          location.coords.longitude;
+        const location = await getCurrentCoordinates();
 
         console.log(
           "Location:",
-          latitude,
-          longitude
+          location.latitude,
+          location.longitude
         );
 
         // Send location to backend
         const data = await getWeather(
           userId,
-          latitude,
-          longitude
+          location.latitude,
+          location.longitude
         );
 
         console.log(
@@ -582,94 +542,89 @@ export default function ClosetScreen() {
     try {
       setAnalyzing(true);
 
-      /*
-       * TEMPORARY:
-       * This is still using a demo item.
-       *
-       * Later this section should call your
-       * actual backend image-analysis endpoint.
-       */
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1000)
-      );
-
-      const timestamp = Date.now();
-
       const user = await getCurrentUser();
-
       if (!user) {
-        Alert.alert(
-          "Login required",
-          "Please log in before adding clothing."
-        );
-        return;
+        throw new Error("Sign in before adding clothing to your closet.");
       }
-
       const userId = user.id;
 
-      if (uploadMode === "single") {
-        const newItem: ClothingItem = {
-          id: `item-${timestamp}`,
-          user_id: userId,
-          image_url: imageUri,
-          category: "Tops",
-          clothing_type: "top",
-          subcategory: "New Item",
-          color: "New",
-          created_at:
-            new Date().toISOString(),
-        };
+      console.log("================================");
+      console.log("STARTING IMAGE PROCESSING");
+      console.log("Mode:", uploadMode);
+      console.log("Image:", imageUri);
+      console.log("User:", userId);
+      console.log("================================");
 
-        setClothes((previous) => [
-          newItem,
-          ...previous,
-        ]);
+      /*
+       * SINGLE
+       * ------
+       * Take Photo → process-image
+       * Upload Photo → process-image
+       *
+       * OUTFIT
+       * ------
+       * Take Photo → process-outfit
+       * Upload Photo → process-outfit
+       */
+      const result = await processClothingImage(
+        imageUri,
+        userId,
+        uploadMode
+      );
 
-        setSelectedCategory("All");
-        setShowOutfits(false);
+      console.log("AI PROCESSING RESULT:", result);
 
-        Alert.alert(
-          "Added to closet",
-          "Your single clothing item has been added to your closet."
-        );
-      } else {
-        const newOutfit: ClothingItem = {
-          id: `outfit-${timestamp}`,
-          user_id: userId,
-          image_url: imageUri,
-          category: "Outfit",
-          clothing_type: "outfit",
-          subcategory: "New Outfit",
-          color: "Complete Look",
-          created_at:
-            new Date().toISOString(),
-        };
-
-        setClothes((previous) => [
-          newOutfit,
-          ...previous,
-        ]);
-
-        setShowOutfits(true);
-
-        Alert.alert(
-          "Outfit added",
-          "Your whole outfit has been added. Later, AI can detect and separate each clothing item from this photo."
-        );
+      const processedItems = Array.isArray(result) ? result : [result];
+      if (processedItems.length === 0) {
+        throw new Error("The AI service did not find any clothing items.");
       }
+
+      const savedItems = await Promise.all(
+        processedItems.map((item) => {
+          const imageUrl = getProcessedImageUrl(item);
+          if (!imageUrl) {
+            throw new Error(
+              "The AI service did not return a public image URL for a processed item."
+            );
+          }
+          return createClothing(userId, {
+            image_url: imageUrl,
+            category: item.category,
+            subcategory: item.subcategory,
+            color: item.color,
+            secondary_color: item.secondary_color,
+            pattern: item.pattern,
+            material: item.material,
+            sleeve_type: item.sleeve_type,
+            fit: item.fit,
+            style: item.style,
+            formality: item.formality,
+            season: item.season,
+            occasions: item.occasions,
+            embedding: item.embedding,
+          });
+        })
+      );
+
+      setClothes((previous) => [...savedItems, ...previous]);
+      setSelectedCategory("All");
+      setShowOutfits(false);
+
+      Alert.alert(
+        uploadMode === "single" ? "Added to closet" : "Outfit processed",
+        `${savedItems.length} clothing item${savedItems.length === 1 ? "" : "s"} saved to your closet.`
+      );
 
       setImageUri(null);
       setShowAddPiece(false);
-    } catch (error) {
-      console.error(
-        "Analyze error:",
-        error
-      );
+    } catch (error: unknown) {
+      console.error("IMAGE PROCESSING ERROR:", error);
 
       Alert.alert(
-        "Analysis failed",
-        "Something went wrong while analyzing the image."
+        "Processing failed",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while processing the image."
       );
     } finally {
       setAnalyzing(false);
@@ -816,11 +771,12 @@ export default function ClosetScreen() {
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={
-              styles.content
+              styles.addItemContent
             }
             showsVerticalScrollIndicator={
-              false
+              true
             }
+            keyboardShouldPersistTaps="handled"
           >
             {/* HEADER */}
 
@@ -1588,6 +1544,7 @@ export default function ClosetScreen() {
           {!showOutfits && (
             <ScrollView
               horizontal
+              style={styles.categoryScroll}
               showsHorizontalScrollIndicator={
                 false
               }
@@ -2000,6 +1957,14 @@ const styles = StyleSheet.create({
     paddingBottom:
       BottomTabInset + 32,
     gap: Spacing.two,
+  },
+
+  addItemContent: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing.three,
+    paddingTop:Spacing.three,
+    paddingBottom:BottomTabInset + 100,
+      gap:Spacing.two,
   },
 
   header: {
@@ -2448,6 +2413,11 @@ const styles = StyleSheet.create({
   chips: {
     gap: 8,
     paddingVertical: 6,
+  },
+
+  categoryScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
 
   chip: {

@@ -373,8 +373,8 @@ def preference_score(outfit, intent):
         style.lower().strip()
         for style in preferences.get(
             "style_preferences",
-            []
-        )
+            [],
+        ) or []
         if style
     }
 
@@ -400,8 +400,8 @@ def preference_score(outfit, intent):
         color.lower().strip()
         for color in preferences.get(
             "color_palette",
-            []
-        )
+            [],
+        ) or []
         if color
     }
 
@@ -427,8 +427,8 @@ def preference_score(outfit, intent):
         pattern.lower().strip()
         for pattern in preferences.get(
             "pattern_preferences",
-            []
-        )
+            [],
+        ) or []
         if pattern
     }
 

@@ -1,4 +1,4 @@
-﻿# CLOSET — AI/Vision + API Service
+# CLOSET — AI/Vision + API Service
 
 AI-powered image processing and embedding service for the **CLOSET Digital Wardrobe** application.
 

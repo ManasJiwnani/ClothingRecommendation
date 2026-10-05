@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { getWeather } from "../../services/weather";
+import { getCurrentCoordinates } from "../../services/location";
+import { embedFashionQuery } from "../../services/ai-stylist";
+import {
+  getDailyRecommendation,
+  getRecommendations,
+  type DailyRecommendationResponse,
+  type OutfitRecommendation,
+  type RecommendationPreset,
+} from "../../services/recommendation";
+import { supabase } from "../../lib/supabase";
 
+import { Image as ExpoImage } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { useRouter } from "expo-router";
 
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -14,6 +26,7 @@ import {
   Text,
   TextInput,
   View,
+  type ImageSourcePropType,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -152,6 +165,63 @@ const presets = [
 ];
 
 const occasions = ["Work", "Weekend", "Evening"];
+const recommendationPresets: RecommendationPreset[] = [
+  "weather",
+  "dinner",
+  "meeting",
+  "weekend",
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getItemLabel(value: unknown) {
+  if (!isRecord(value)) {
+    return "";
+  }
+
+  return [value.color, value.subcategory || value.category]
+    .filter((part): part is string => typeof part === "string" && !!part)
+    .join(" ");
+}
+
+function getItemImage(value: unknown): ImageSourcePropType | undefined {
+  if (!isRecord(value) || typeof value.image_url !== "string") {
+    return undefined;
+  }
+
+  return { uri: value.image_url };
+}
+
+function getItemImageUrl(value: unknown) {
+  return isRecord(value) && typeof value.image_url === "string"
+    ? value.image_url
+    : "";
+}
+
+function getWeatherLocationErrorMessage(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+  ) {
+    switch (error.code) {
+      case 1:
+        return "Location permission is blocked. Allow Location for localhost:8081 in your browser's site settings, then try again.";
+      case 2:
+        return "Your device could not determine its location. Check that Location Services are on and try again.";
+      case 3:
+        return "Location lookup timed out. Check your connection or device location settings, then try again.";
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Weather could not be loaded. Check your browser's location permission and try again.";
+}
 
 
 // ============================================================
@@ -168,6 +238,13 @@ export default function StylistScreen() {
   const [lookIndex, setLookIndex] = useState(0);
 
   const [prompt, setPrompt] = useState("");
+  const [queryRecommendations, setQueryRecommendations] =
+    useState<OutfitRecommendation[]>([]);
+  const [submittedQuery, setSubmittedQuery] = useState<string | null>(null);
+  const [queryRecommendationLoading, setQueryRecommendationLoading] =
+    useState(false);
+  const [queryRecommendationError, setQueryRecommendationError] =
+    useState<string | null>(null);
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -184,126 +261,182 @@ export default function StylistScreen() {
   const [weatherLoading, setWeatherLoading] =
     useState(true);
 
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [weatherRetry, setWeatherRetry] = useState(0);
+  const [dailyRecommendation, setDailyRecommendation] =
+    useState<DailyRecommendationResponse | null>(null);
+  const [dailyRecommendationLoading, setDailyRecommendationLoading] =
+    useState(true);
+  const [dailyRecommendationError, setDailyRecommendationError] =
+    useState<string | null>(null);
+  const [dailyRecommendationRetry, setDailyRecommendationRetry] = useState(0);
+
+  const submitPrompt = async () => {
+    const query = prompt.trim();
+    if (!query || queryRecommendationLoading) {
+      return;
+    }
+
+    setQueryRecommendationLoading(true);
+    setQueryRecommendationError(null);
+    setQueryRecommendations([]);
+    setSubmittedQuery(null);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) {
+        throw authError;
+      }
+      if (!user) {
+        throw new Error("Sign in to get recommendations from your closet.");
+      }
+
+      const location = await getCurrentCoordinates();
+      const embeddedQuery = await embedFashionQuery(query);
+      if (
+        embeddedQuery.embedding_dimensions !== 768 ||
+        embeddedQuery.embedding.length !== 768
+      ) {
+        throw new Error(
+          "The AI service returned an invalid query embedding. Please try again."
+        );
+      }
+
+      const response = await getRecommendations(
+        user.id,
+        embeddedQuery.embedding,
+        embeddedQuery.intent,
+        location.latitude,
+        location.longitude
+      );
+
+      setSubmittedQuery(query);
+      setQueryRecommendations(response.recommendations.slice(0, 5));
+      setPrompt("");
+    } catch (error) {
+      console.error("Failed to get outfit recommendations:", error);
+      setQueryRecommendationError(
+        error instanceof Error
+          ? error.message
+          : "Recommendations could not be loaded. Please try again."
+      );
+    } finally {
+      setQueryRecommendationLoading(false);
+    }
+  };
 
   // ==========================================================
   // LOAD WEATHER
   // ==========================================================
 
   useEffect(() => {
+    let isActive = true;
 
     const loadWeather = async () => {
+      setWeatherLoading(true);
+      setWeatherError(null);
 
       try {
-
-        // TEMPORARY USER ID
-        // Later replace this with Supabase authenticated user ID
         const userId = "user001";
 
+        const location = await getCurrentCoordinates();
+        const data = await getWeather(
+          userId,
+          location.latitude,
+          location.longitude
+        );
 
-        // ----------------------------------------------------
-        // Check geolocation
-        // ----------------------------------------------------
-
-        if (!navigator.geolocation) {
-
-          console.error(
-            "Geolocation is not supported."
-          );
-
-          setWeatherLoading(false);
-
-          return;
+        if (isActive) {
+          setWeather(data);
         }
 
-
-        // ----------------------------------------------------
-        // Get current location
-        // ----------------------------------------------------
-
-        navigator.geolocation.getCurrentPosition(
-
-          async (position) => {
-
-            try {
-
-              const latitude =
-                position.coords.latitude;
-
-              const longitude =
-                position.coords.longitude;
-
-
-              console.log(
-                "Location:",
-                latitude,
-                longitude
-              );
-
-
-              // ------------------------------------------------
-              // Call your backend
-              // ------------------------------------------------
-
-              const data = await getWeather(
-                userId,
-                latitude,
-                longitude
-              );
-
-
-              console.log(
-                "WEATHER FROM BACKEND:",
-                data
-              );
-
-
-              // ------------------------------------------------
-              // Save weather response
-              // ------------------------------------------------
-
-              setWeather(data);
-
-            } catch (error) {
-
-              console.error(
-                "Weather API error:",
-                error
-              );
-
-            } finally {
-
-              setWeatherLoading(false);
-
-            }
-          },
-
-          (error) => {
-
-            console.error(
-              "Location error:",
-              error
-            );
-
-            setWeatherLoading(false);
-
-          }
-        );
-
       } catch (error) {
-
         console.error(
-          "Failed to load weather:",
-          error
+          "Failed to load local weather:",
+          error instanceof Error
+            ? error.message
+            : typeof error === "object" && error !== null && "code" in error
+              ? { code: error.code, message: "Browser geolocation failed" }
+              : error
         );
-
-        setWeatherLoading(false);
+        if (isActive) {
+          setWeather(null);
+          setWeatherError(getWeatherLocationErrorMessage(error));
+        }
+      } finally {
+        if (isActive) {
+          setWeatherLoading(false);
+        }
       }
     };
 
+    void loadWeather();
+    return () => {
+      isActive = false;
+    };
+  }, [weatherRetry]);
 
-    loadWeather();
+  useEffect(() => {
+    let isActive = true;
 
-  }, []);
+    const loadDailyRecommendation = async () => {
+      setDailyRecommendationLoading(true);
+      setDailyRecommendationError(null);
+      setDailyRecommendation(null);
+      setLookIndex(0);
+
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) {
+          throw authError;
+        }
+        if (!user) {
+          throw new Error("Sign in to get recommendations from your closet.");
+        }
+
+        const location = await getCurrentCoordinates();
+        const response = await getDailyRecommendation(
+          user.id,
+          recommendationPresets[selectedPresetIndex],
+          location.latitude,
+          location.longitude
+        );
+        if (response.recommendations.length === 0) {
+          throw new Error(
+            "No outfit could be built from your closet. Add clothing items and try again."
+          );
+        }
+
+        if (isActive) {
+          setDailyRecommendation(response);
+        }
+      } catch (error) {
+        console.error("Failed to load home daily recommendation:", error);
+        if (isActive) {
+          setDailyRecommendationError(
+            error instanceof Error
+              ? error.message
+              : "Daily recommendation could not be loaded. Please try again."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setDailyRecommendationLoading(false);
+        }
+      }
+    };
+
+    void loadDailyRecommendation();
+    return () => {
+      isActive = false;
+    };
+  }, [dailyRecommendationRetry, selectedPresetIndex]);
 
 
   // ==========================================================
@@ -499,8 +632,33 @@ export default function StylistScreen() {
   const selectedPreset =
     presets[selectedPresetIndex];
 
-  const look =
-    selectedPreset.looks[lookIndex];
+  const staticLook =
+    selectedPreset.looks[lookIndex % selectedPreset.looks.length];
+  const selectedDailyOutfit =
+    dailyRecommendation?.recommendations[lookIndex]?.outfit;
+  const dailyTop = selectedDailyOutfit?.top || selectedDailyOutfit?.dress;
+  const look = selectedDailyOutfit
+    ? {
+        title:
+          [
+            getItemLabel(dailyTop),
+            getItemLabel(selectedDailyOutfit.bottom),
+            getItemLabel(selectedDailyOutfit.footwear),
+          ]
+            .filter(Boolean)
+            .join(" + ") || `${selectedPreset.label} look`,
+        note: `A personalized look from your closet for ${selectedPreset.label.toLowerCase()}.`,
+        occasion:
+          typeof dailyRecommendation?.intent.occasion === "string"
+            ? dailyRecommendation.intent.occasion.toUpperCase()
+            : selectedPreset.label.toUpperCase(),
+        items: {
+          top: getItemImage(dailyTop),
+          bottom: getItemImage(selectedDailyOutfit.bottom),
+          shoes: getItemImage(selectedDailyOutfit.footwear),
+        },
+      }
+    : staticLook;
 
 
   // ==========================================================
@@ -508,11 +666,13 @@ export default function StylistScreen() {
   // ==========================================================
 
   const shuffleLook = () => {
+    const lookCount =
+      dailyRecommendation?.recommendations.length ||
+      selectedPreset.looks.length;
 
     setLookIndex(
       (current) =>
-        (current + 1) %
-        selectedPreset.looks.length
+        (current + 1) % lookCount
     );
 
     setIsWorn(false);
@@ -629,9 +789,9 @@ export default function StylistScreen() {
 
                   {weatherLoading
                     ? "--"
-                    : `${Math.round(
-                        temperature
-                      )}°C`}
+                    : typeof temperature === "number"
+                      ? `${Math.round(temperature)}°C`
+                      : "--"}
 
                 </Text>
 
@@ -648,8 +808,32 @@ export default function StylistScreen() {
               Your wardrobe, your mood, your moment.
             </Text>
 
-          </View>
+            {weatherError && (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  backgroundColor: "#fff8ec",
+                  borderRadius: 12,
+                  marginTop: 12,
+                  padding: 12,
+                }}
+              >
+                <Text style={{ color: "#704e2f", maxWidth: 280 }}>
+                  {weatherError}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setWeatherRetry((attempt) => attempt + 1)}
+                  style={{ marginTop: 8 }}
+                >
+                  <Text style={{ color: "#704e2f", fontWeight: "700" }}>
+                    Try location again
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
+          </View>
 
           {/* ==================================================
               PRESETS
@@ -674,10 +858,6 @@ export default function StylistScreen() {
                     );
 
                     setLookIndex(0);
-
-                    setPrompt(
-                      `Curate: ${preset.label}`
-                    );
 
                     setIsWorn(false);
 
@@ -724,6 +904,30 @@ export default function StylistScreen() {
               OUTFIT CARD
           ================================================== */}
 
+          {dailyRecommendationLoading ? (
+            <View style={styles.dailyRecommendationStatus}>
+              <ActivityIndicator size="small" color="#745a38" />
+              <Text style={styles.dailyRecommendationStatusText}>
+                Finding a look from your closet...
+              </Text>
+            </View>
+          ) : dailyRecommendationError ? (
+            <View style={styles.dailyRecommendationError}>
+              <Text style={styles.dailyRecommendationErrorText} selectable>
+                {dailyRecommendationError}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  setDailyRecommendationRetry((attempt) => attempt + 1)
+                }
+              >
+                <Text style={styles.dailyRecommendationRetry}>
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          ) : dailyRecommendation && (
           <View style={styles.lookCard}>
 
 
@@ -806,29 +1010,35 @@ export default function StylistScreen() {
 
               {/* TOP */}
 
-              <Image
-                source={look.items.top}
-                style={styles.topItem}
-                resizeMode="contain"
-              />
+              {look.items.top && (
+                <Image
+                  source={look.items.top}
+                  style={styles.topItem}
+                  resizeMode="contain"
+                />
+              )}
 
 
               {/* BOTTOM */}
 
-              <Image
-                source={look.items.bottom}
-                style={styles.bottomItem}
-                resizeMode="contain"
-              />
+              {look.items.bottom && (
+                <Image
+                  source={look.items.bottom}
+                  style={styles.bottomItem}
+                  resizeMode="contain"
+                />
+              )}
 
 
               {/* SHOES */}
 
-              <Image
-                source={look.items.shoes}
-                style={styles.shoesItem}
-                resizeMode="contain"
-              />
+              {look.items.shoes && (
+                <Image
+                  source={look.items.shoes}
+                  style={styles.shoesItem}
+                  resizeMode="contain"
+                />
+              )}
 
             </View>
 
@@ -856,6 +1066,12 @@ export default function StylistScreen() {
 
               </View>
 
+              {dailyRecommendation.weather_error && (
+                <Text style={styles.dailyWeatherNotice} selectable>
+                  {dailyRecommendation.weather_error}
+                </Text>
+              )}
+
 
               {/* DYNAMIC WEATHER BADGE */}
 
@@ -865,11 +1081,13 @@ export default function StylistScreen() {
                   style={styles.weatherBadgeTemp}
                 >
 
-                  {weatherLoading
-                    ? "--"
-                    : `${Math.round(
-                        temperature
-                      )}°`}
+                  {typeof dailyRecommendation.weather?.temperature === "number"
+                    ? `${Math.round(
+                        dailyRecommendation.weather.temperature
+                      )}°`
+                    : typeof temperature === "number"
+                      ? `${Math.round(temperature)}°`
+                      : "--"}
 
                 </ThemedText>
 
@@ -925,9 +1143,17 @@ export default function StylistScreen() {
               {/* TRY ON */}
 
               <Pressable
-                onPress={() =>
-                  router.push("/try_on")
-                }
+                onPress={() => {
+                    router.push({
+                      pathname: "/virtualtry_on" as any,
+                      params: {
+                        top: getItemImageUrl(dailyTop),
+                        bottom:
+                          getItemImageUrl(selectedDailyOutfit?.bottom) ||
+                          getItemImageUrl(selectedDailyOutfit?.footwear),
+                      },
+                    });
+                  }}
 
                 style={
                   styles.cardActionPrimary
@@ -989,6 +1215,7 @@ export default function StylistScreen() {
             </View>
 
           </View>
+          )}
 
 
           {/* ==================================================
@@ -1014,39 +1241,159 @@ export default function StylistScreen() {
               value={prompt}
               onChangeText={setPrompt}
 
-              placeholder="Ask Élise to refine this look"
+              placeholder="Ask Élise what to wear..."
 
               placeholderTextColor="#747878"
 
               style={styles.promptInput}
+              returnKeyType="send"
+              onSubmitEditing={() => void submitPrompt()}
             />
 
 
             <Pressable
               accessibilityLabel="Send to Elise"
-
-              onPress={() =>
-                setPrompt("")
-              }
-
-              style={styles.sendButton}
+              accessibilityRole="button"
+              disabled={!prompt.trim() || queryRecommendationLoading}
+              onPress={() => void submitPrompt()}
+              style={[
+                styles.sendButton,
+                (!prompt.trim() || queryRecommendationLoading) &&
+                  styles.sendButtonDisabled,
+              ]}
             >
-
-              <SymbolView
-                name={{
-                  ios: "arrow.up",
-                  android: "arrow_upward",
-                  web: "arrow_upward",
-                }}
-
-                size={17}
-
-                tintColor="#ffddb4"
-              />
+              {queryRecommendationLoading ? (
+                <ActivityIndicator size="small" color="#ffddb4" />
+              ) : (
+                <SymbolView
+                  name={{
+                    ios: "arrow.up",
+                    android: "arrow_upward",
+                    web: "arrow_upward",
+                  }}
+                  size={17}
+                  tintColor="#ffddb4"
+                />
+              )}
 
             </Pressable>
 
           </View>
+
+          {queryRecommendationError && (
+            <View style={styles.queryError}>
+              <Text style={styles.queryErrorText}>
+                {queryRecommendationError}
+              </Text>
+            </View>
+          )}
+
+          {submittedQuery && !queryRecommendationLoading && (
+            <View style={styles.queryResults}>
+              <View style={styles.queryResultsHeader}>
+                <View>
+                  <Text style={styles.sectionKicker}>
+                    YOUR CLOSET, STYLED
+                  </Text>
+                  <Text style={styles.queryResultsTitle}>
+                    Looks for “{submittedQuery}”
+                  </Text>
+                </View>
+                <Text style={styles.resultCount}>
+                  {queryRecommendations.length} / 5
+                </Text>
+              </View>
+
+              {queryRecommendations.length === 0 ? (
+                <Text style={styles.noQueryResults}>
+                  No outfit combinations matched this request. Add more
+                  clothing items to your closet or try another prompt.
+                </Text>
+              ) : (
+                queryRecommendations.map((recommendation, index) => {
+                  const outfit = recommendation.outfit;
+                  const pieces = [
+                    { label: "TOP", item: outfit.top || outfit.dress },
+                    { label: "BOTTOM", item: outfit.bottom },
+                    { label: "SHOES", item: outfit.footwear },
+                    { label: "ACCESSORY", item: outfit.accessory },
+                  ].filter(
+                    (
+                      piece
+                    ): piece is {
+                      label: string;
+                      item: Record<string, unknown>;
+                    } => piece.item !== undefined
+                  );
+
+                  return (
+                    <View
+                      key={`${submittedQuery}-${index}`}
+                      style={styles.recommendationCard}
+                    >
+                      <Text style={styles.recommendationTitle}>
+                        LOOK {index + 1}
+                      </Text>
+                      <View style={styles.recommendationPieces}>
+                        {pieces.map(({ label, item }, pieceIndex) => {
+                          const imageUrl =
+                            typeof item.image_url === "string"
+                              ? item.image_url
+                              : null;
+                          const itemName = [
+                            item.color,
+                            item.subcategory || item.category,
+                          ]
+                            .filter(
+                              (value): value is string =>
+                                typeof value === "string" && value.length > 0
+                            )
+                            .join(" ");
+
+                          return (
+                            <View
+                              key={`${label}-${pieceIndex}`}
+                              style={styles.recommendationPiece}
+                            >
+                              {imageUrl ? (
+                                <ExpoImage
+                                  source={{ uri: imageUrl }}
+                                  style={styles.recommendationImage}
+                                  contentFit="contain"
+                                />
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.recommendationImage,
+                                    styles.recommendationImageFallback,
+                                  ]}
+                                >
+                                  <SymbolView
+                                    name="tshirt"
+                                    size={22}
+                                    tintColor="#aaa69f"
+                                  />
+                                </View>
+                              )}
+                              <Text style={styles.recommendationPieceLabel}>
+                                {label}
+                              </Text>
+                              <Text
+                                style={styles.recommendationPieceName}
+                                numberOfLines={2}
+                              >
+                                {itemName || "Closet item"}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
 
 
           {/* ==================================================
@@ -1133,7 +1480,7 @@ export default function StylistScreen() {
 
               <Pressable
                 onPress={() =>
-                  router.push("/saved")
+                  router.push("/saved" as any)
                 }
 
                 style={styles.quickCard}
@@ -1181,7 +1528,7 @@ export default function StylistScreen() {
 
               <Pressable
                 onPress={() =>
-                  router.push("/itinerary")
+                  router.push("/itinerary" as any)
                 }
 
                 style={styles.quickCard}
@@ -1434,6 +1781,49 @@ const styles = StyleSheet.create({
       "0 5px 18px rgba(24, 22, 20, 0.10)",
   },
 
+  dailyRecommendationStatus: {
+    minHeight: 96,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    padding: 16,
+    borderRadius: 15,
+    backgroundColor: "#f0eeea",
+  },
+
+  dailyRecommendationStatusText: {
+    color: "#745a38",
+    fontSize: 13,
+  },
+
+  dailyRecommendationError: {
+    gap: 10,
+    padding: 16,
+    borderRadius: 15,
+    backgroundColor: "#fff1ee",
+  },
+
+  dailyRecommendationErrorText: {
+    color: "#8b302b",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  dailyRecommendationRetry: {
+    color: "#745a38",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  dailyWeatherNotice: {
+    color: "#765a2d",
+    fontSize: 11,
+    lineHeight: 16,
+    paddingHorizontal: 5,
+    paddingTop: 8,
+  },
+
   outfitCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1452,7 +1842,7 @@ const styles = StyleSheet.create({
 
   lookTitle: {
     fontFamily: Fonts.serif,
-    fontSize: 25,
+    fontSize: 18,
     lineHeight: 31,
     marginTop: 3,
   },
@@ -1508,25 +1898,26 @@ const styles = StyleSheet.create({
 
   topItem: {
     position: "absolute",
-    width: "30%",
-    height: "50%",
-    top: "0%",
+    width: "40%",
+    height: "48%",
+    top: "4%",
     zIndex: 4,
   },
 
   bottomItem: {
     position: "absolute",
     width: "70%",
-    height: "60%",
-    top: "24%",
+    height: "49%",
+    bottom: "5%",
     zIndex: 3,
   },
 
   shoesItem: {
     position: "absolute",
-    width: "20%",
-    height: "15%",
-    bottom: "4%",
+    width: "28%",
+    height: "16%",
+    bottom: "2%",
+    right: "6%",
     zIndex: 2,
   },
 
@@ -1670,6 +2061,108 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#1b1c1a",
+  },
+
+  sendButtonDisabled: {
+    opacity: 0.55,
+  },
+
+  queryError: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#fff1ee",
+  },
+
+  queryErrorText: {
+    color: "#9b3030",
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  queryResults: {
+    gap: 10,
+  },
+
+  queryResultsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  queryResultsTitle: {
+    color: "#1b1c1a",
+    fontFamily: Fonts.serif,
+    fontSize: 21,
+    lineHeight: 27,
+    marginTop: 3,
+  },
+
+  resultCount: {
+    color: "#745a38",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  recommendationCard: {
+    gap: 10,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e8e4de",
+  },
+
+  recommendationTitle: {
+    color: "#745a38",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+
+  recommendationPieces: {
+    flexDirection: "row",
+    gap: 8,
+  },
+
+  recommendationPiece: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+
+  recommendationImage: {
+    width: "100%",
+    aspectRatio: 0.9,
+    borderRadius: 10,
+    backgroundColor: "#f4f1ec",
+  },
+
+  recommendationImageFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  recommendationPieceLabel: {
+    color: "#745a38",
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
+
+  recommendationPieceName: {
+    color: "#1b1c1a",
+    fontSize: 10,
+    lineHeight: 14,
+  },
+
+  noQueryResults: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "#f5f3f0",
+    color: "#606260",
+    fontSize: 13,
+    lineHeight: 19,
   },
 
 

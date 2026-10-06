@@ -692,7 +692,7 @@ export default function StylistScreen() {
       await Share.share({
 
         message:
-          `Check out my ${look.title} outfit from Style Sense!`,
+          `Check out my ${look.title} outfit from CLOSET AI!`,
 
       });
 
@@ -767,7 +767,7 @@ export default function StylistScreen() {
               <View>
 
                 <Text style={styles.kicker}>
-                  STYLE SENSE
+                  CLOSET AI
                 </Text>
 
                 <Text style={styles.greeting}>
@@ -1585,7 +1585,7 @@ export default function StylistScreen() {
             <ThemedText
               style={styles.colophonText}
             >
-              STYLE SENSE · EDITED WITH INTENTION
+              CLOSET AI · EDITED WITH INTENTION
             </ThemedText>
 
           </View>

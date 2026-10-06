@@ -146,7 +146,7 @@ export default function NameScreen() {
 
         <Text style={styles.subtitle}>
           Tell us your name so we can personalize
-          your Style Sense experience.
+          your Closet AI experience.
         </Text>
 
         <Text style={styles.label}>

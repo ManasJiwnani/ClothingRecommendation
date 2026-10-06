@@ -1,5 +1,6 @@
 import os
 import logging
+import ssl
 
 import httpx
 # ==================================================
@@ -582,7 +583,7 @@ async def daily_recommendation(
             weather_context = get_weather_context(
                 weather
             )
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ssl.SSLError, TimeoutError):
             logger.warning(
                 "Live weather is unavailable for daily recommendations.",
                 exc_info=True

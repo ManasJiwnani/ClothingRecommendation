@@ -44,7 +44,7 @@ export default function AddScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-            <View style={styles.headerTop}><View><ThemedText style={styles.kicker}>STYLE SENSE</ThemedText><ThemedText type="subtitle" style={styles.title}>Add a piece</ThemedText></View><View style={styles.headerWeather}><ThemedText style={styles.weatherText}>PARIS</ThemedText><ThemedText style={styles.weatherTemperature}>19°C</ThemedText></View></View>
+            <View style={styles.headerTop}><View><ThemedText style={styles.kicker}>CLOSET AI</ThemedText><ThemedText type="subtitle" style={styles.title}>Add a piece</ThemedText></View><View style={styles.headerWeather}><ThemedText style={styles.weatherText}>PARIS</ThemedText><ThemedText style={styles.weatherTemperature}>19°C</ThemedText></View></View>
             <ThemedText style={styles.description}>Capture your garment to add it to your wardrobe.</ThemedText>
           </View>
 

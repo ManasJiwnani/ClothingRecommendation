@@ -489,13 +489,15 @@ if (profileError) {
         </View>
 
         <View style={styles.grid}>
-          {STYLE_OPTIONS.map((item, index) => {
+          {STYLE_OPTIONS.map((item) => {
             const selected =
               preferences.styles.includes(item.id);
 
             return (
               <Pressable
                 key={item.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
                 onPress={() =>
                   toggleArrayValue(
                     "styles",
@@ -504,68 +506,29 @@ if (profileError) {
                 }
                 style={[
                   styles.styleCard,
-                  selected &&
-                    styles.selectedDarkCard,
+                  selected && styles.selectedPhotoCard,
                 ]}
               >
-                <View style={styles.cardImage}>
+                <View style={styles.photoCardImageFrame}>
                   <Image
-                    source={ item.image }
-                    style={styles.cardImage}
+                    source={item.image}
+                    style={styles.photoCardImage}
                     contentFit="cover"
                   />
-                  <View
-                    style={styles.textBackground}
-                  >
-                    <Text style={styles.checkText}>
-                      ✓
+                  <View style={styles.photoCardCaption}>
+                    <Text style={styles.photoCardTitle}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.photoCardSubtitle}>
+                      {item.subtitle}
                     </Text>
                   </View>
+                  {selected && (
+                    <View style={styles.photoCardCheck}>
+                      <Text style={styles.photoCardCheckText}>✓</Text>
+                    </View>
+                  )}
                 </View>
-                <View
-                  style={[
-                    styles.cardImagePlaceholder,
-                    selected &&
-                      styles.darkPlaceholder,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.cardNumber,
-                      selected &&
-                        styles.whiteText,
-                    ]}
-                  >
-                    
-                  </Text>
-           
-                </View>
-                
-
-                
-                {/* {selected && (
-                  
-                )} */}
-
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    selected &&
-                      styles.whiteText,
-                  ]}
-                >
-                  {item.title}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cardSubtitle,
-                    selected &&
-                      styles.selectedSubText,
-                  ]}
-                >
-                  {item.subtitle}
-                </Text>
               </Pressable>
             );
           })}
@@ -692,6 +655,8 @@ if (profileError) {
             return (
               <Pressable
                 key={item.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
                 onPress={() =>
                   setPreferences((prev) => ({
                     ...prev,
@@ -700,70 +665,29 @@ if (profileError) {
                 }
                 style={[
                   styles.bodyCard,
-                  selected &&
-                    styles.selectedDarkCard,
+                  selected && styles.selectedPhotoCard,
                 ]}
               >
-                <View
-                  style={[
-                    styles.bodyIconBox,
-                    selected &&
-                      styles.darkPlaceholder,
-                  ]}
-                >
-                  {/* <Text
-                    style={[
-                      styles.bodySymbol,
-                      selected &&
-                        styles.whiteText,
-                    ]}
-                  >
-                    ◇
-                  </Text> */}
-                </View>
-                    <View style={styles.cardImage}>
+                <View style={styles.photoCardImageFrame}>
                   <Image
-                    source={ item.image }
-                    style={styles.cardImage}
+                    source={item.image}
+                    style={styles.photoCardImage}
                     contentFit="cover"
                   />
-                  <View
-                    style={styles.textBackground}
-                  >
-                    <Text style={styles.checkText}>
-                      ✓
+                  <View style={styles.photoCardCaption}>
+                    <Text style={styles.photoCardTitle}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.photoCardSubtitle}>
+                      {item.subtitle}
                     </Text>
                   </View>
+                  {selected && (
+                    <View style={styles.photoCardCheck}>
+                      <Text style={styles.photoCardCheckText}>✓</Text>
+                    </View>
+                  )}
                 </View>
-                {/* {selected && (
-                  <View
-                    style={styles.checkCircle}
-                  >
-                    <Text style={styles.checkText}>
-                      ✓
-                    </Text>
-                  </View> */}
-                {/* )} */}
-
-                <Text
-                  style={[
-                    styles.cardTitle,
-                    selected &&
-                      styles.whiteText,
-                  ]}
-                >
-                  {item.title}
-                </Text>
-
-                <Text
-                  style={[
-                    styles.cardSubtitle,
-                    selected &&
-                      styles.selectedSubText,
-                  ]}
-                >
-                  {item.subtitle}
-                </Text>
               </Pressable>
             );
           })}
@@ -1084,22 +1008,22 @@ if (profileError) {
   const renderStep = () => {
     switch (step) {
       case 1:
-        return renderStyleStep();
-
-      case 2:
-        return renderColorStep();
-
-      case 3:
-        return renderBodyStep();
-
-      case 4:
-        return renderSkinStep();
-
-      case 5:
         return renderMeasurementsStep();
 
-      case 6:
+      case 2:
+        return renderBodyStep();
+
+      case 3:
+        return renderSkinStep();
+
+      case 4:
+        return renderColorStep();
+
+      case 5:
         return renderPatternStep();
+
+      case 6:
+        return renderStyleStep();
 
       default:
         return null;
@@ -1300,77 +1224,72 @@ const styles = StyleSheet.create({
 
   styleCard: {
     width: "48%",
-    minHeight: 190,
-    backgroundColor: "#EFEEE9",
-    borderRadius: 12,
     marginBottom: 14,
+    borderRadius: 16,
     overflow: "hidden",
-    paddingBottom: 13,
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "#E4E1DA",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "transparent",
   },
 
-  selectedDarkCard: {
-    backgroundColor: "#a18731",
-    borderColor: "#a18731",
+  selectedPhotoCard: {
+    borderColor: "#8B7653",
   },
 
-  cardImagePlaceholder: {
-    height: 10,
-    backgroundColor: "#DDD9D1",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  darkPlaceholder: {
-    backgroundColor: "#222",
-  },
-
-  cardNumber: {
-    fontSize: 22,
-    color: "#999",
-    fontWeight: "300",
-  },
-
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#d3ab7d",
-    marginTop: 11,
-    marginHorizontal: 12,
-  },
-
-  cardSubtitle: {
-    fontSize: 9,
-    color: "#888",
-    marginTop: 4,
-    marginHorizontal: 12,
-  },
-
-  cardImage:{
+  photoCardImageFrame: {
+    height: 190,
     width: "100%",
-    height:180,
-    aspectRatio: 0.78,
-    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#E8E3DA",
+  },
+
+  photoCardImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  photoCardCaption: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 11,
+    paddingTop: 22,
+    paddingBottom: 11,
+    backgroundColor: "rgba(20, 19, 17, 0.72)",
+  },
+
+  photoCardTitle: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  photoCardSubtitle: {
+    color: "#F0EDE7",
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  photoCardCheck: {
+    position: "absolute",
+    top: 9,
+    right: 9,
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: "#8B7653",
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: "#dededb",
+    borderWidth: 1,
+    borderColor: "#FFFFFF",
   },
 
-  textBackground: {
-    position: "absolute",
-    bottom:10,
-    left:10,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-
-  selectedSubText: {
-    color: "#AAA",
+  photoCardCheckText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
 
   whiteText: {
@@ -1453,29 +1372,12 @@ const styles = StyleSheet.create({
 
   bodyCard: {
     width: "48%",
-    minHeight: 160,
-    backgroundColor: "#EFEEE9",
-    borderRadius: 12,
     marginBottom: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    borderWidth: 1,
-    borderColor: "#E2DED6",
-  },
-
-  bodyIconBox: {
-    width: 72,
-    height: 75,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 9,
-  },
-
-  bodySymbol: {
-    fontSize: 48,
-    color: "#555",
-    fontWeight: "200",
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "transparent",
   },
 
   skinGrid: {

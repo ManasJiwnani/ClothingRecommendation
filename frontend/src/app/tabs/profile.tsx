@@ -341,7 +341,7 @@ export default function ProfileScreen() {
                 <ThemedText
                   style={styles.styleSense}
                 >
-                  STYLE SENSE
+                  CLOSET AI
                 </ThemedText>
 
                 <ThemedText

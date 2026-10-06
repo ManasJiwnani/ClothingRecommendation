@@ -790,7 +790,7 @@ export default function ClosetScreen() {
                   <Text
                     style={styles.kicker}
                   >
-                    STYLE SENSE
+                    CLOSET AI
                   </Text>
 
                   <Text
@@ -1321,7 +1321,7 @@ export default function ClosetScreen() {
                 <Text
                   style={styles.kicker}
                 >
-                  STYLE SENSE
+                  CLOSET AI
                 </Text>
 
                 <Text

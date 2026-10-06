@@ -1,4 +1,5 @@
 import logging
+import ssl
 
 import httpx
 
@@ -62,7 +63,7 @@ async def weather_node(
             latitude,
             longitude
         )
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ssl.SSLError, TimeoutError):
         logger.warning(
             "Live weather is unavailable for this recommendation request.",
             exc_info=True

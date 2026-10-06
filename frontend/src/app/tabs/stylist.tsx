@@ -570,7 +570,7 @@ export default function HomeScreen() {
             <View style={styles.headerTop}>
               <View>
                 <ThemedText style={styles.kicker}>
-                  STYLE SENSE
+                  CLOSET AI
                 </ThemedText>
 
                 <ThemedText
@@ -754,7 +754,7 @@ export default function HomeScreen() {
 
                 <View style={styles.modelLabel}>
                   <Text style={styles.modelLabelKicker}>
-                    STYLE SENSE
+                    CLOSET AI
                   </Text>
 
                   <Text style={styles.modelLabelText}>

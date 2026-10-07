@@ -17,6 +17,7 @@ from services.supabase_service import (
 from services.retrieval import retrieve_clothes
 from services.recommendation_service import filter_clothes
 from services.outfit_builder import build_outfits
+<<<<<<< Updated upstream
 from services.color_matcher import (
     normalize_color,
     is_color_compatible,
@@ -33,6 +34,9 @@ from services.outfit_scorer import (
     score_outfit
 )
 from services.outfit_ranker import rank_outfits
+=======
+from services.outfit_ranker import rank_outfits, select_diverse_outfits
+>>>>>>> Stashed changes
 
 
 app = FastAPI(
@@ -349,6 +353,514 @@ def test_ranking(request: RecommendationRequest):
 # @app.post("/filter-clothes")
 # def filter_clothing(request: FilterRequest):
 
+<<<<<<< Updated upstream
+=======
+        allowed_presets = [
+            "weather",
+            "meeting",
+            "presentation",
+            "dinner",
+            "party",
+            "casual-day",
+            "college",
+            "weekend"
+        ]
+
+        preset = request.preset.lower()
+
+        if preset not in allowed_presets:
+
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Invalid preset.",
+                    "allowed_presets": allowed_presets
+                }
+            )
+
+        print("\n====================================")
+        print("PRESET:", preset)
+        print("====================================")
+
+
+        # ==================================================
+        # 2. GET WEATHER
+        # ==================================================
+        # We fetch weather for ALL presets because weather
+        # can influence the final outfit.
+        #
+        # Example:
+        # Meeting + 32°C → lighter formal clothes
+        # Dinner + 15°C → jacket/layer can be useful
+        # College + rain → avoid unsuitable footwear
+        # ==================================================
+
+        weather_error = None
+        try:
+            weather = await get_current_weather(
+                request.latitude,
+                request.longitude
+            )
+            weather_context = get_weather_context(
+                weather
+            )
+        except (httpx.HTTPError, ssl.SSLError, TimeoutError):
+            logger.warning(
+                "Live weather is unavailable for daily recommendations.",
+                exc_info=True
+            )
+            weather = None
+            weather_error = (
+                "Live weather is temporarily unavailable. "
+                "This outfit is based on your closet and selected occasion."
+            )
+            weather_context = get_weather_context({
+                "temperature": 25,
+                "rain": 0,
+                "weather_code": None,
+            })
+
+        print("\n===== WEATHER =====")
+        print(weather)
+
+
+        # ==================================================
+        # 3. WEATHER CONTEXT
+        # ==================================================
+
+        print("\n===== WEATHER CONTEXT =====")
+        print(weather_context)
+
+
+        # ==================================================
+        # 4. CREATE INTENT BASED ON PRESET
+        # ==================================================
+
+        intent = create_default_intent(
+            preset,
+            weather_context
+        )
+
+        print("\n===== INTENT =====")
+        print(intent)
+
+
+        # ==================================================
+        # 5. GET USER CLOTHES
+        # ==================================================
+
+        clothes = get_user_clothes(
+            request.user_id
+        )
+
+        if not clothes:
+
+            raise HTTPException(
+                status_code=404,
+                detail="No clothes found for this user."
+            )
+
+        print(
+            "\nTOTAL USER CLOTHES:",
+            len(clothes)
+        )
+
+
+        # ==================================================
+        # 6. FILTER CLOTHES
+        # ==================================================
+
+        weather_sensitive_clothes = []
+
+        temperature = weather_context.get(
+            "temperature"
+        )
+
+        for item in clothes:
+
+            item_season = [
+                str(s).lower()
+                for s in item.get("season", [])
+            ]
+
+            # ------------------------------------------
+            # WEATHER FILTER
+            # ------------------------------------------
+
+            weather_compatible = True
+
+            if temperature is not None:
+
+                # Cold
+                if temperature < 18:
+
+                    weather_compatible = (
+                        "winter" in item_season
+                        or
+                        "fall" in item_season
+                        or
+                        "all" in item_season
+                    )
+
+                # Hot
+                elif temperature > 28:
+
+                    weather_compatible = (
+                        "summer" in item_season
+                        or
+                        "spring" in item_season
+                        or
+                        "all" in item_season
+                    )
+
+                # Moderate
+                else:
+
+                    weather_compatible = True
+
+
+            if weather_compatible:
+
+                weather_sensitive_clothes.append(
+                    item
+                )
+
+
+        # ------------------------------------------
+        # FALLBACK
+        # ------------------------------------------
+
+        if not weather_sensitive_clothes:
+
+            weather_sensitive_clothes = clothes
+
+
+        print(
+            "\nWEATHER COMPATIBLE CLOTHES:",
+            len(weather_sensitive_clothes)
+        )
+
+
+        # ==================================================
+        # 7. FILTER BASED ON PRESET / INTENT
+        # ==================================================
+
+        filtered_clothes = filter_clothes(
+            weather_sensitive_clothes,
+            intent.model_dump()
+            if hasattr(intent, "model_dump")
+            else intent
+        )
+
+        print(
+            "\nINTENT COMPATIBLE CLOTHES:",
+            len(filtered_clothes)
+        )
+
+
+        # If intent filtering removes everything,
+        # use weather-compatible clothes.
+
+        if not filtered_clothes:
+
+            filtered_clothes = weather_sensitive_clothes
+
+
+        # ==================================================
+        # 8. BUILD OUTFITS
+        # ==================================================
+
+        outfits = build_outfits(
+            filtered_clothes
+        )
+
+        print(
+            "\nGENERATED OUTFITS:",
+            len(outfits)
+        )
+
+
+        # ==================================================
+        # 9. RANK OUTFITS
+        # ==================================================
+
+        recommendations = rank_outfits(
+            outfits,
+            intent,
+            weather
+        )
+
+        print(
+            "\nRANKED RECOMMENDATIONS:",
+            len(recommendations)
+        )
+
+
+        # ==================================================
+        # 10. RETURN
+        # ==================================================
+
+        return {
+
+            "success": True,
+
+            "preset": preset,
+
+            "user_id": request.user_id,
+
+            "weather": weather,
+
+            "weather_context": weather_context,
+
+            "weather_error": weather_error,
+
+            "intent": (
+                intent.model_dump()
+                if hasattr(intent, "model_dump")
+                else intent
+            ),
+
+            "available_clothes": len(clothes),
+
+            "weather_compatible_clothes":
+                len(weather_sensitive_clothes),
+
+            "intent_compatible_clothes":
+                len(filtered_clothes),
+
+            "generated_outfits":
+                len(outfits),
+
+            "recommendations":
+                select_diverse_outfits(
+                    recommendations,
+                    request.top_k
+                )
+        }
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        import traceback
+
+        print(
+            "\n===== DAILY RECOMMENDATION ERROR ====="
+        )
+
+        print(
+            type(e).__name__
+        )
+
+        print(
+            str(e)
+        )
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+    
+# Swap Item Endpoint
+@app.post("/swap-item")
+async def swap_item(request: SwapItemRequest):
+
+    try:
+        # 1. Get all wardrobe items
+        clothes = get_user_clothes(request.user_id)
+
+        print("TOTAL CLOTHES:", len(clothes))
+
+        # 2. Keep only the requested category
+        candidates = [
+            item
+            for item in clothes
+            if (item.get("category") or "").lower()
+            == request.swap_category.lower()
+        ]
+
+        print("SWAP CATEGORY:", request.swap_category)
+        print("CANDIDATES:", len(candidates))
+
+        # 3. Rank candidates against locked items
+        alternatives = rank_swap_candidates(
+            candidates=candidates,
+            locked_items=request.locked_items,
+            current_item_id=request.current_item_id,
+            limit=request.limit
+        )
+
+        print("ALTERNATIVES:", alternatives)
+
+        return {
+            "success": True,
+            "swap_category": request.swap_category,
+            "candidate_count": len(candidates),
+            "alternatives": alternatives
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# ==================================================
+# LAYER RECOMMENDATION  
+@app.post("/add-layer")
+def add_layer(request: LayerRecommendationRequest):
+
+    try:
+
+        # -----------------------------------------
+        # 1. GET ALL USER CLOTHES
+        # -----------------------------------------
+
+        clothes = get_user_clothes(
+            request.user_id
+        )
+
+        if not clothes:
+            raise HTTPException(
+                status_code=404,
+                detail="No clothes found for this user."
+            )
+
+        # -----------------------------------------
+        # 2. FIND THE CURRENT OUTFIT ITEMS
+        # -----------------------------------------
+
+        outfit_items = []
+
+        outfit_ids = {
+            str(item_id)
+            for item_id in request.outfit_item_ids
+        }
+
+        for item in clothes:
+
+            item_id = str(
+                item.get("id", "")
+            )
+
+            if item_id in outfit_ids:
+                outfit_items.append(item)
+
+        # -----------------------------------------
+        # 3. CHECK THAT OUTFIT EXISTS
+        # -----------------------------------------
+
+        if (
+            request.outfit_item_ids
+            and not outfit_items
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="None of the outfit items were found."
+            )
+
+        # -----------------------------------------
+        # 4. RECOMMEND LAYERS
+        # -----------------------------------------
+
+        recommendations = recommend_layers(
+            clothes=clothes,
+            outfit_items=outfit_items,
+            temperature=request.temperature,
+            requested_layer_type=request.layer_type,
+            top_k=request.top_k
+        )
+
+        # -----------------------------------------
+        # 5. RETURN RESULTS
+        # -----------------------------------------
+
+        return {
+            "user_id": request.user_id,
+
+            "temperature": request.temperature,
+
+            "weather_condition":
+                request.weather_condition,
+
+            "outfit_items":
+                outfit_items,
+
+            "layer_recommendations":
+                recommendations
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        import traceback
+
+        print("\n===== LAYER ERROR =====")
+        print(type(e).__name__)
+        print(e)
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+@app.post("/outfits/like")
+async def like_outfit_endpoint(request: LikeOutfitRequest):
+
+    try:
+        saved_outfit = like_outfit(
+            user_id=request.user_id,
+            outfit=request.outfit
+        )
+
+        return {
+            "success": True,
+            "message": "Outfit liked successfully",
+            "liked_outfit_id": saved_outfit["id"]
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+@app.get("/outfits/liked/{user_id}")
+async def get_liked_outfits_endpoint(user_id: str):
+
+    try:
+        outfits = get_liked_outfits(user_id)
+
+        return {
+            "success": True,
+            "count": len(outfits),
+            "outfits": outfits
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+# @app.get("/test-supabase-direct")
+# def test_supabase_direct():
+>>>>>>> Stashed changes
 #     try:
 
 #         filtered = filter_clothes(

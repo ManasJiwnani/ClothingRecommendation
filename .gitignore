@@ -26,6 +26,11 @@ venv/
 env/
 ENV/
 
+# Environment variables
+**/.env
+**/.env.*
+!**/.env.example
+
 # Local app runtime data
 backend/uploaded_images/*
 !backend/uploaded_images/.gitkeep

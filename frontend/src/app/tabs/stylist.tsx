@@ -576,6 +576,7 @@ export default function HomeScreen() {
                 <ThemedText
                   style={{
                     fontFamily: Fonts.serif,
+                    color: '#1b1c1a',
                     fontSize: 32,
                     lineHeight: 40,
                     fontWeight: '500',
@@ -671,7 +672,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          <View style={styles.section}>
+          {/* <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View>
                 <Text style={styles.sectionKicker}>OCCASION</Text>
@@ -711,7 +712,7 @@ export default function HomeScreen() {
                 );
               })}
             </ScrollView>
-          </View>
+          </View> */}
 
           {/* ================================================= */}
           {/* TODAY'S LOOK */}
@@ -777,7 +778,7 @@ export default function HomeScreen() {
 
                 <Pressable style={styles.mirrorButton}>
                   <Text style={styles.mirrorButtonText}>
-                    Try this in Mirror
+                    Buy Now
                   </Text>
 
                   <SymbolView

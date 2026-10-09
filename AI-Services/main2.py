@@ -2688,9 +2688,9 @@ async def embed_query(
 
                     f"Mood: {intent.get('mood', '')}. "
 
-                    f"Weather sensitive: "
+                    f"Weather sensitive: True"
 
-                    f"{intent.get('weather_sensitive', False)}."
+                    f"{intent.get('weather_sensitive', True)}."
 
                 ),
 

@@ -1,5 +1,8 @@
+import asyncio
 import base64
+import hashlib
 import os
+import time
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlparse
@@ -10,7 +13,7 @@ import truststore
 
 truststore.inject_into_ssl()
 
-import requests
+import aiohttp
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +32,72 @@ PERSON_IMAGE_PATH = Path(
     os.getenv("VTO_PERSON_IMAGE_PATH", Path(__file__).with_name("model.png"))
 )
 
+# Cache directory for preprocessed garment images
+GARMENT_CACHE_DIR = Path(__file__).with_name("garment_cache")
+GARMENT_CACHE_DIR.mkdir(exist_ok=True)
+
+# Cache for preprocessed person image
+_PERSON_PREPARED_CACHE: bytes | None = None
+
+
+def get_person_prepared() -> bytes:
+    """Return cached preprocessed person image, computing on first call."""
+    global _PERSON_PREPARED_CACHE
+    if _PERSON_PREPARED_CACHE is None:
+        _PERSON_PREPARED_CACHE = crop_and_prepare(PERSON_IMAGE_PATH.read_bytes())
+    return _PERSON_PREPARED_CACHE
+
+
+def _get_garment_cache_path(url: str) -> Path:
+    """Generate cache file path for a garment URL."""
+    url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
+    return GARMENT_CACHE_DIR / f"{url_hash}.jpg"
+
+
+def get_garment_prepared(url: str) -> bytes:
+    """Return cached preprocessed garment image, computing on first call."""
+    cache_path = _get_garment_cache_path(url)
+    if cache_path.exists():
+        return cache_path.read_bytes()
+    
+    # Download and process the garment image
+    async def _download_and_process():
+        async with aiohttp.ClientSession() as session:
+            image_bytes = await _download_image_async(session, url)
+            return crop_and_prepare(image_bytes)
+    
+    garment_bytes = asyncio.run(_download_and_process())
+    cache_path.write_bytes(garment_bytes)
+    return garment_bytes
+
+
+class Timer:
+    """Simple context manager for timing code blocks."""
+    def __init__(self, name: str):
+        self.name = name
+        self.start = 0.0
+        self.elapsed = 0.0
+
+    def __enter__(self):
+        self.start = time.perf_counter()
+        return self
+
+    def __exit__(self, *args):
+        self.elapsed = time.perf_counter() - self.start
+        print(f"[TIMING] {self.name}: {self.elapsed:.3f}s")
+
+
+async def _download_image_async(session: aiohttp.ClientSession, url: str) -> bytes:
+    """Download a single image asynchronously."""
+    async with session.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=aiohttp.ClientTimeout(total=30),
+    ) as resp:
+        resp.raise_for_status()
+        return await resp.read()
+
+
 app = FastAPI(title="Virtual Try-On Service")
 app.add_middleware(
     CORSMiddleware,
@@ -45,30 +114,8 @@ class VirtualTryOnRequest(BaseModel):
     shoes: str | None = None
 
 
-def download_image(url: str) -> bytes:
-    parsed_url = urlparse(url)
-    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise ValueError("Image URLs must use HTTP or HTTPS.")
-
-    response = requests.get(
-        url,
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=30,
-        verify=True,
-    )
-    response.raise_for_status()
-    return response.content
-
-
-def download_and_trim_image(url: str) -> Image.Image:
-    image = Image.open(BytesIO(download_image(url))).convert("RGBA")
-    bounds = image.getchannel("A").getbbox()
-    if bounds:
-        image = image.crop(bounds)
-    return image
-
-
 def combine_outfit_for_vto(clothing_urls: dict[str, str | None]) -> bytes:
+    """Combine clothing images into a single garment image. Uses cached preprocessed images."""
     canvas = Image.new("RGBA", (768, 1024), (255, 255, 255, 255))
     positions = {
         "top": (80, 40, 608, 380),
@@ -82,7 +129,9 @@ def combine_outfit_for_vto(clothing_urls: dict[str, str | None]) -> bytes:
             continue
 
         try:
-            image = download_and_trim_image(url)
+            # Use cached preprocessed garment image (includes download + crop_and_prepare)
+            garment_bytes = get_garment_prepared(url)
+            image = Image.open(BytesIO(garment_bytes)).convert("RGBA")
         except Exception as error:
             print(f"Failed to load {category}: {error}")
             continue
@@ -212,7 +261,8 @@ def crop_and_prepare(image_bytes: bytes) -> bytes:
 
 
 @app.post("/virtual-try-on")
-def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str]:
+def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str | float]:
+    overall_start = time.perf_counter()
     clothing_urls = {
         "top": request.top,
         "bottom": request.bottom,
@@ -241,12 +291,12 @@ def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str]:
         )
 
     try:
-        person_bytes = PERSON_IMAGE_PATH.read_bytes()
-        garment_bytes = combine_outfit_for_vto(clothing_urls)
-        person_prepared = crop_and_prepare(person_bytes)
-        garment_prepared = crop_and_prepare(garment_bytes)
+            with Timer("get_person_prepared (cached)"):
+                person_prepared = get_person_prepared()
+            with Timer("combine_outfit_for_vto (downloads + combine)"):
+                garment_prepared = combine_outfit_for_vto(clothing_urls)
     except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     prompt = """
 Create a realistic virtual try-on.
@@ -267,21 +317,25 @@ Change only the clothing.
 """
 
     try:
-        result = OpenAI(api_key=api_key).images.edit(
-            model=IMAGE_MODEL,
-            image=[
-                ("person_processed.jpg", BytesIO(person_prepared), "image/jpeg"),
-                ("garment_processed.jpg", BytesIO(garment_prepared), "image/jpeg"),
-            ],
-            prompt=prompt,
-            size="768x1024",
-            quality="low",
-        )
+        with Timer("OpenAI API call"):
+                    result = OpenAI(api_key=api_key, timeout=120.0).images.edit(
+                model=IMAGE_MODEL,
+                image=[
+                    ("person_processed.jpg", BytesIO(person_prepared), "image/jpeg"),
+                    ("garment_processed.jpg", BytesIO(garment_prepared), "image/jpeg"),
+                ],
+                prompt=prompt,
+                size="768x1024",
+                quality="low",
+            )
         generated_image = result.data[0]
         if generated_image.b64_json:
             result_bytes = base64.b64decode(generated_image.b64_json)
         elif generated_image.url:
-            result_bytes = download_image(generated_image.url)
+            with Timer("Download result image"):
+                result_bytes = asyncio.run(_download_image_async(
+                    aiohttp.ClientSession(), generated_image.url
+                ))
         else:
             raise ValueError("The image model returned no image data.")
     except Exception as error:
@@ -291,4 +345,6 @@ Change only the clothing.
         ) from error
 
     image_url = f"data:image/png;base64,{base64.b64encode(result_bytes).decode('ascii')}"
-    return {"image_url": image_url}
+    total_time = time.perf_counter() - overall_start
+    print(f"[TIMING] TOTAL REQUEST: {total_time:.3f}s")
+    return {"image_url": image_url, "processing_time_seconds": str(round(total_time, 3))}

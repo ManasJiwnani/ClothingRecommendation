@@ -1229,8 +1229,7 @@ export default function ClosetScreen() {
                 >
                   {uploadMode ===
                   "single"
-                    ? "This photo will be treated as one wardrobe item."
-                    : "This photo will be treated as a complete outfit. Later, your AI pipeline can extract individual pieces from it."}
+                  }
                 </Text>
               </View>
             )}

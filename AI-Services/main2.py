@@ -2564,8 +2564,6 @@ async def embed_query(
 
     a 768-dimensional embedding.
 
-
-
     The embedding model is the same model used
 
     for clothing metadata embeddings.

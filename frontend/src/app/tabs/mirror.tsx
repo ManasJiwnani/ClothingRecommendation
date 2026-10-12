@@ -31,6 +31,7 @@ import { aiApiFetch } from '../../lib/api';
 // =========================================================
 
 const WOMAN_IMAGE = require('../../assets/woman.png');
+const MAN_IMAGE = require('../../assets/man.png')
 
 // =========================================================
 // TYPES
@@ -140,6 +141,59 @@ function toOutfit(value: unknown): Outfit | null {
 export default function MirrorScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const outfitCardWidth = Math.max(0, screenWidth - 40);
+  // =======================================================
+// USER PROFILE & GENDER
+// =======================================================
+
+const [userGender, setUserGender] = useState<'male' | 'female'>('female');
+const [userId, setUserId] = useState<string | null>(null);
+
+useEffect(() => {
+  let isActive = true;
+
+  const loadUserProfileAndLiked = async () => {
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) return;
+      if (isActive) setUserId(user.id);
+
+      // Fetch gender from user_preferences table
+      const { data: prefData } = await supabase
+        .from('user_preferences')
+        .select('gender')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (isActive && prefData?.gender) {
+        const normalized = String(prefData.gender).toLowerCase().trim();
+        setUserGender(normalized === 'male' ? 'male' : 'female');
+      }
+
+      // Load liked outfits
+      const response = await getLikedOutfits(user.id);
+      if (isActive) {
+        setLikedOutfits(
+          response.outfits
+            .map((outfit) => toOutfit(outfit))
+            .filter((outfit): outfit is Outfit => outfit !== null)
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load user profile or saved outfits:', error);
+    }
+  };
+
+  void loadUserProfileAndLiked();
+
+  return () => {
+    isActive = false;
+  };
+}, []);
+  const currentModelImage = userGender === 'male' ? MAN_IMAGE : WOMAN_IMAGE;
 
   // =======================================================
   // FLOW STATE
@@ -268,6 +322,8 @@ export default function MirrorScreen() {
         {
           method: 'POST',
           body: JSON.stringify({
+            user_id: userId ?? 'guest_user',
+            gender: userGender,
             top: topUrl,
             bottom: bottomUrl,
             shoes: footwearUrl,
@@ -397,30 +453,43 @@ export default function MirrorScreen() {
         throw new Error('Sign in to get outfit recommendations.');
       }
 
-      const location = await getCurrentCoordinates();
-      const query = await embedFashionQuery(trimmedCommand);
-      if (
-        query.embedding_dimensions !== 768 ||
-        query.embedding.length !== 768
-      ) {
-        throw new Error('The AI service returned an invalid query embedding.');
-      }
+      // Replace the hard requirement on getCurrentCoordinates() inside handleCommand:
+        let location: { latitude: number | null; longitude: number | null } = {
+          latitude: null,
+          longitude: null,
+        };
 
-      const response = await getRecommendations(
-        user.id,
-        query.embedding,
-        query.intent,
-        location.latitude,
-        location.longitude
-      );
-      const recommendations = response.recommendations
-        .map((recommendation) => toOutfit(recommendation))
-        .filter((outfit): outfit is Outfit => outfit !== null);
-      if (recommendations.length === 0) {
-        throw new Error(
-          'No matching outfits were found. Add more items to your closet and try again.'
+        try {
+          const coords = await getCurrentCoordinates();
+          if (coords) {
+            location = { latitude: coords.latitude, longitude: coords.longitude };
+          }
+        } catch (locErr) {
+          console.warn("Location skipped or permission denied, proceeding without weather:", locErr);
+        }
+        const query = await embedFashionQuery(trimmedCommand);
+        if (
+          query.embedding_dimensions !== 768 ||
+          query.embedding.length !== 768
+        ) {
+          throw new Error('The AI service returned an invalid query embedding.');
+        }
+
+        const response = await getRecommendations(
+          user.id,
+          query.embedding,
+          query.intent,
+          location.latitude ?? 0,
+          location.longitude ?? 0
         );
-      }
+        const recommendations = response.recommendations
+          .map((recommendation) => toOutfit(recommendation))
+          .filter((outfit): outfit is Outfit => outfit !== null);
+        if (recommendations.length === 0) {
+          throw new Error(
+            'No matching outfits were found. Add more items to your closet and try again.'
+          );
+        }
 
       setOutfits(recommendations);
       setWeatherNotice(response.weather_error ?? null);
@@ -1118,12 +1187,8 @@ export default function MirrorScreen() {
           >
 
             <Image
-              source={
-                WOMAN_IMAGE
-              }
-              style={
-                styles.modelImage
-              }
+              source={currentModelImage}
+              style={styles.modelImage}
               resizeMode="contain"
             />
 
@@ -1231,7 +1296,7 @@ export default function MirrorScreen() {
               ) : (
                 <>
                   <Image
-                    source={WOMAN_IMAGE}
+                    source={currentModelImage}
                     style={styles.modelImage}
                     resizeMode="contain"
                   />

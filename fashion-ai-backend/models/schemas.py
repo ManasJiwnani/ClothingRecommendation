@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional,Any
 
 
 # ==================================================
@@ -136,8 +136,8 @@ class RecommendationRequest(BaseModel):
 
     intent: Intent
 
-    latitude: float
-    longitude: float
+    latitude: float| None = None
+    longitude: float| None = None
 
     retrieval_limit: int = Field(default=5, gt=0, le=20)
 

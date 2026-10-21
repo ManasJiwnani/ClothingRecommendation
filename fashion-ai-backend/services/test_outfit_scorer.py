@@ -1,9 +1,17 @@
 import unittest
 
-from services.outfit_scorer import score_outfit
+from services.outfit_scorer import score_item_relevance, score_outfit
 
 
 class OutfitScorerTests(unittest.TestCase):
+    def test_item_relevance_matches_occasion_case_insensitively(self):
+        score = score_item_relevance(
+            {"occasions": ["navratri"]},
+            {"occasion": "Navratri"},
+        )
+
+        self.assertGreaterEqual(score, 20)
+
     def test_score_outfit_with_null_user_preference_lists(self):
         outfit = {
             "type": "separates",

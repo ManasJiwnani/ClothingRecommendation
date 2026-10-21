@@ -737,14 +737,6 @@ async def daily_recommendation(
         )
 
 
-        # If intent filtering removes everything,
-        # use weather-compatible clothes.
-
-        if not filtered_clothes:
-
-            filtered_clothes = weather_sensitive_clothes
-
-
         # ==================================================
         # 8. BUILD OUTFITS
         # ==================================================
@@ -766,7 +758,8 @@ async def daily_recommendation(
         recommendations = rank_outfits(
             outfits,
             intent,
-            weather
+            weather,
+            top_k=request.top_k,
         )
 
         print(

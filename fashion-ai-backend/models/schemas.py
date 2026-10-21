@@ -6,6 +6,12 @@ from typing import Optional,Any
 # INTENT
 # ==================================================
 
+class ItemConstraint(BaseModel):
+    category: Optional[str] = None
+    color: Optional[str] = None
+    garment: Optional[str] = None
+
+
 class Intent(BaseModel):
     occasion: Optional[str] = None
     style: Optional[str] = None
@@ -14,6 +20,10 @@ class Intent(BaseModel):
     weather_sensitive: bool = False
     color_preference: list[str] = Field(default_factory=list)
     excluded_items: list[str] = Field(default_factory=list)
+    category_preference: list[str] = Field(default_factory=list)
+    cultural_aesthetic: Optional[str] = None
+    is_strictly_traditional: bool = False
+    item_constraints: list[ItemConstraint] = Field(default_factory=list)
 
     @field_validator("formality")
     @classmethod
@@ -139,7 +149,7 @@ class RecommendationRequest(BaseModel):
     latitude: float| None = None
     longitude: float| None = None
 
-    retrieval_limit: int = Field(default=5, gt=0, le=20)
+    retrieval_limit: int = Field(default=20, gt=0, le=20)
 
     top_k: int = Field(default=5, gt=0, le=20)
 

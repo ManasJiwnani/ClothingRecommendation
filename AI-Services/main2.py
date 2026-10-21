@@ -1,6 +1,7 @@
 import io
 
 import os
+import sys
 
 import base64
 
@@ -141,6 +142,52 @@ except ImportError:
     print("WARNING: cloudinary package is not installed.")
 
 
+# Ensure both this service directory and the repository root are importable
+# when this file is launched from a different working directory.
+_service_dir = Path(__file__).resolve().parent
+for _import_dir in (_service_dir, _service_dir.parent):
+    if str(_import_dir) not in sys.path:
+        sys.path.insert(0, str(_import_dir))
+
+from agentic.fashion_prompt_agents import (
+    ClothingTaggingAgent,
+    QueryIntentAgent,
+    WholeOutfitExtractionAgent,
+    FlatLayGenerationAgent,
+)
+
+tagging_agent = ClothingTaggingAgent()
+intent_agent = QueryIntentAgent()
+extraction_agent = WholeOutfitExtractionAgent()
+flatlay_agent = FlatLayGenerationAgent()
+
+def _tag_image(image_bytes: bytes) -> Dict[str, Any]:
+    # ...
+    data_url = f"data:image/png;base64,{image_base64}"
+    req = tagging_agent.prompt_func(relevant_items={"extra_inputs": {"image_data_urls": [data_url]}})
+    
+    response = openai_client.responses.create(
+        model=VISION_MODEL,
+        input=[{
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": req["prompt"]},
+                {"type": "input_image", "image_url": data_url},
+            ],
+        }],
+    )
+    # ...
+
+def analyze_query(query: str) -> Dict[str, Any]:
+    req = intent_agent.prompt_func(user_query=query)
+    response = openai_client.responses.create(
+        model=VISION_MODEL,
+        input=[{
+            "role": "user",
+            "content": [{"type": "input_text", "text": req["prompt"]}],
+        }],
+    )
+    # ...
 
 
 
@@ -400,143 +447,91 @@ else:
 
 
 
+# ============================================================
+# CLOTHING ATTRIBUTE PROMPT
+# ============================================================
+
 TAGGING_PROMPT = """
-You are a fashion cataloging assistant with expertise across
-global and regional clothing styles, including Indian wear
-and Western wear.
+You are an expert fashion cataloging assistant with deep knowledge of global,
+Western, and Indian ethnic fashion traditions.
 
-Look at this clothing item image and identify it as
-SPECIFICALLY and ACCURATELY as possible.
+Analyze this garment image and identify its attributes with precision.
+The background has already been removed.
 
-The image has already been background-removed and contains
-a fashion item on a transparent background.
-
-Return ONLY valid JSON.
-
-Return exactly this structure:
+Return ONLY valid JSON matching this exact structure:
 
 {
     "category": "top | bottom | dress | footwear | outerwear | accessory",
-    "subcategory": "specific item name such as shirt, kurta, jeans, sneakers, slippers, jacket, scarf, hat, bag, belt, sunglasses, necklace, earrings, bracelet, ring, watch",
-    "color": "main color",
-    "pattern": "solid, striped, floral, printed, embroidered, checkered, etc.",
-    "material": "best guess such as cotton, silk, denim, wool, or null if unclear",
-    "sleeve_type": "full, half, sleeveless, three-quarter, or null if not applicable",
-    "fit": "fitted | regular | loose | oversized",
-    "style": "aesthetic descriptor such as minimalist, boho, formal, preppy, streetwear",
-    "formality": "integer from 1 to 5",
-    "season": [
-        "summer",
-        "winter",
-        "monsoon",
-        "spring",
-        "fall",
-        "all-season"
-    ],
+    "subcategory": "specific garment type (e.g., choli, blouse, crop top, lehenga skirt, ghagra, flared skirt, trousers, jeans, kurta, saree, jacket)",
+    "cultural_domain": "indian_ethnic | western | indo_western | fusion",
+    "color": "primary dominant color",
+    "secondary_colors": ["accent color 1", "accent color 2"],
+    "pattern": "solid | printed | floral | striped | geometric | ethnic_motif | abstract",
+    "embellishment": ["mirror_work", "gota_patti", "zari", "sequins", "embroidery", "none"],
+    "material": "fabric guess such as cotton, silk, chiffon, georgette, velvet, denim, wool, or null if unclear",
+    "sleeve_type": "full | half | sleeveless | three-quarter | strappy | null",
+    "neckline": "sweetheart | deep-neck | round | v-neck | boat | collar | null",
+    "fit": "fitted | regular | flared | loose | oversized",
+    "style": "descriptive style (e.g., traditional festive, garba wear, minimalist, formal, boho, streetwear)",
+    "formality": 4,
+    "season": ["summer", "winter", "monsoon", "festive_season", "all-season"],
     "occasions": [
-        "college",
-        "office",
-        "presentation",
-        "party",
-        "date",
-        "wedding",
-        "gym",
-        "trekking",
-        "outing",
-        "casual",
-        "formal",
-        "festive",
-        "religious",
-        "vacation",
-        "travel",
-        "beach",
-        "picnic"
+        "navratri", "wedding", "sangeet", "diwali", "puja", "festive", 
+        "office", "formal", "casual", "party", "date", "college"
     ]
 }
 
 Rules:
-
-1. Identify only information visible or strongly inferable
-   from the clothing item.
-
-2. Do not invent details.
-
-3. Use null when a property cannot reasonably be determined.
-
-4. The category must describe the clothing item.
-
-5. Return only JSON.
-
-6. Do not use markdown.
-
-7. Do not include explanations.
+1. Distinguish Indian ethnic garments accurately:
+   - Traditional cropped/corset tops with ethnic embroidery, borders, or tassels must have subcategory "choli" and cultural_domain "indian_ethnic".
+   - Flared skirts with ethnic borders or latkans must have subcategory "lehenga skirt" or "ghagra" and cultural_domain "indian_ethnic".
+2. Western garments (like pencil skirts, tailored trousers, blazers) must have cultural_domain "western".
+3. "formality" must be an integer from 1 (very casual) to 5 (very formal).
+4. Do not invent details not visible in the image.
+5. Return ONLY a valid JSON object without markdown fences, explanation, or extra text.
 """
 
-
-
-
-
 # ============================================================
-
 # QUERY INTENT PROMPT
-
 # ============================================================
-
-
 
 INTENT_PROMPT = """
 You are a fashion query understanding assistant.
 
-Your job is to understand the user's clothing/outfit request
-and convert it into structured information.
+Your job is to analyze the user's clothing or outfit search query
+and extract structured constraints.
 
 User query:
-
 {query}
 
-Extract:
+Extract and return ONLY a valid JSON object with these keys:
 
-- occasion: The event or situation.
-
-- style: The desired fashion style.
-
-- formality: A number from 1 to 5:
-  1 very casual,
-  2 casual,
-  3 smart casual,
-  4 formal,
-  5 very formal.
-
-- mood: The desired mood or feeling.
-
-- weather_sensitive: true if weather or temperature matters.
-
-- color_preference: List of colors explicitly requested.
-
-- excluded_items: List of clothing items explicitly not wanted.
+{
+    "occasion": "event or situation (e.g., Navratri, wedding, interview, beach vacation)",
+    "category_preference": ["specific garments explicitly requested, e.g., 'lehenga', 'choli', 'trousers'"],
+    "item_constraints": [
+        {"category": "requested category", "color": "requested color or null", "garment": "requested garment or null"}
+    ],
+    "cultural_aesthetic": "Indian Ethnic | Western | Indo-Western | null if not specified",
+    "style": "desired vibe or aesthetic (e.g., traditional festive, minimalist, sharp formal)",
+    "formality": 4,
+    "mood": "emotional vibe (e.g., vibrant, energetic, subtle)",
+    "weather_sensitive": false,
+    "color_preference": ["requested colors or empty list"],
+    "excluded_items": ["items to exclude, e.g., 'pants', 'western wear' if strictly traditional"],
+    "is_strictly_traditional": true
+}
 
 Rules:
-
-1. Do not invent information.
-
-2. Understand natural language and synonyms.
-
-3. Keep occasion and style as natural descriptive text.
-
-4. Interpret:
-
-   "I have a job interview"
-
-   as:
-
-   occasion = "interview"
-
-5. If information is unavailable, return null.
-
-6. Return only the requested structured fields.
+1. A query for Navratri, garba, or dandiya outfits implies Indian festive attire even when the user does not name a garment. Set is_strictly_traditional to true, cultural_aesthetic to 'Indian Ethnic', and add 'western wear' to excluded_items.
+2. Also set those traditional constraints when the user explicitly requests ethnic attire such as a lehenga choli, saree, or kurta pajama.
+3. Honor an explicit request for Western, Indo-Western, or fusion clothing instead of applying the traditional constraints.
+4. For each explicitly requested garment, add one item_constraints entry. Put a color constraint on the garment it describes, not on every item. For example, "red tops with jeans" means a red top constraint and a jeans bottom constraint. Do not substitute skirts for jeans or other garments for explicitly requested types.
+5. Use an empty item_constraints list when no garment or item-specific color is explicitly requested.
+6. Formality must be an integer from 1 (very casual) to 5 (very formal), or null when unspecified.
+7. Do not assume or invent information not supported by the query.
+8. Return ONLY valid JSON without markdown wrapping.
 """
-
-
 
 
 # ============================================================
@@ -675,6 +670,8 @@ def clothing_to_metadata_text(
 
         ("color", attributes.get("color", "")),
 
+        ("cultural domain", attributes.get("cultural_domain", "")),
+
         (
 
             "secondary colors",
@@ -692,6 +689,8 @@ def clothing_to_metadata_text(
         ),
 
         ("pattern", attributes.get("pattern", "")),
+
+        ("embellishment", ", ".join(ensure_list(attributes.get("embellishment", [])))),
 
         ("material", attributes.get("material", "")),
 

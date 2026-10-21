@@ -10,6 +10,7 @@ from services.weather_scorer import weather_score as item_weather_score
 from services.color_matcher import (
     score_outfit_colors
 )
+from services.intent_matching import occasion_matches
 
 
 # STYLE COMPATIBILITY
@@ -83,14 +84,12 @@ def get_outfit_items(outfit):
         items = [
             outfit.get("top"),
             outfit.get("bottom"),
-            outfit.get("footwear")
         ]
 
     elif outfit.get("type") == "dress":
 
         items = [
             outfit.get("dress"),
-            outfit.get("footwear")
         ]
 
     else:
@@ -112,13 +111,8 @@ def score_item_relevance(item, intent):
     # Occasion
     requested_occasion = intent.get("occasion")
 
-    if requested_occasion:
-
-        occasions = item.get("occasions") or []
-
-        if requested_occasion in occasions:
-
-            score += 20
+    if occasion_matches(requested_occasion, item.get("occasions")):
+        score += 20
 
 
     # Style requested by user
@@ -126,11 +120,17 @@ def score_item_relevance(item, intent):
 
     if requested_style:
 
-        item_style = item.get("style")
+        item_style = str(item.get("style") or "").casefold().strip()
+        normalized_requested_style = str(requested_style).casefold().strip()
 
-        if item_style == requested_style:
-
-            score += 15
+        if item_style and normalized_requested_style:
+            if item_style == normalized_requested_style:
+                score += 15
+            elif (
+                normalized_requested_style in item_style
+                or item_style in normalized_requested_style
+            ):
+                score += 10
 
     # Formality requested by user
     requested_formality = intent.get("formality")
@@ -164,11 +164,7 @@ def score_item_relevance(item, intent):
 
 
     # Semantic similarity
-    similarity = item.get(
-        "similarity",
-        0
-    )
-
+    similarity = float(item.get("similarity") or 0)
     score += similarity * 10
 
 
@@ -190,11 +186,7 @@ def score_occasion(items, intent):
 
     for item in items:
 
-        occasions = item.get(
-            "occasions"
-        ) or []
-
-        if requested_occasion in occasions:
+        if occasion_matches(requested_occasion, item.get("occasions")):
 
             score += 8
 

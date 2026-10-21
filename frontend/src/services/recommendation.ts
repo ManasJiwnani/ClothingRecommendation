@@ -81,7 +81,7 @@ export async function getRecommendations(
       },
       latitude,
       longitude,
-      retrieval_limit: 5,
+      retrieval_limit: 20,
       top_k: 5,
     }),
   });

@@ -1,6 +1,8 @@
 import unittest
 
+from models.schemas import Intent
 from services.outfit_builder import build_outfits
+from services.outfit_ranker import rank_outfits
 from services.recommendation_service import filter_clothes
 
 
@@ -65,6 +67,246 @@ class RecommendationServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(filtered_clothes[0]["id"], "dinner-dress")
+
+    def test_intent_schema_preserves_traditional_constraints(self):
+        intent = Intent.model_validate(
+            {
+                "occasion": "Navratri",
+                "category_preference": ["lehenga", "choli"],
+                "cultural_aesthetic": "Indian Ethnic",
+                "is_strictly_traditional": True,
+            }
+        )
+
+        self.assertEqual(
+            intent.model_dump()["category_preference"],
+            ["lehenga", "choli"],
+        )
+        self.assertEqual(
+            intent.model_dump()["cultural_aesthetic"],
+            "Indian Ethnic",
+        )
+        self.assertTrue(intent.model_dump()["is_strictly_traditional"])
+
+    def test_intent_schema_preserves_per_garment_color_and_type_constraints(self):
+        intent = Intent.model_validate(
+            {
+                "category_preference": ["tops", "jeans"],
+                "color_preference": ["red"],
+                "item_constraints": [
+                    {"category": "top", "color": "red"},
+                    {"category": "bottom", "garment": "jeans"},
+                ],
+            }
+        )
+
+        self.assertEqual(
+            [
+                (item.category, item.color, item.garment)
+                for item in intent.item_constraints
+            ],
+            [("top", "red", None), ("bottom", None, "jeans")],
+        )
+
+    def test_red_top_and_jeans_constraints_exclude_wrong_color_and_skirt(self):
+        clothes = [
+            {
+                "id": "red-top",
+                "category": "top",
+                "subcategory": "t-shirt",
+                "color": "red",
+            },
+            {
+                "id": "black-top",
+                "category": "top",
+                "subcategory": "tube top",
+                "color": "black",
+            },
+            {
+                "id": "blue-jeans",
+                "category": "bottom",
+                "subcategory": "jeans",
+                "color": "blue",
+            },
+            {
+                "id": "denim-skirt",
+                "category": "bottom",
+                "subcategory": "denim skirt",
+                "color": "light blue",
+            },
+            {
+                "id": "sandals",
+                "category": "footwear",
+                "subcategory": "sandals",
+            },
+        ]
+        intent = {
+            "color_preference": ["red"],
+            "category_preference": ["tops", "jeans"],
+            "item_constraints": [
+                {"category": "top", "color": "red"},
+                {"category": "bottom", "garment": "jeans"},
+            ],
+        }
+
+        typed_intent = Intent.model_validate(intent)
+        filtered_clothes = filter_clothes(clothes, typed_intent)
+        recommendations = rank_outfits(
+            build_outfits(filtered_clothes),
+            typed_intent,
+            top_k=5,
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"red-top", "blue-jeans", "sandals"},
+        )
+        self.assertEqual(len(recommendations), 1)
+        outfit = recommendations[0]["outfit"]
+        self.assertEqual(outfit["top"]["id"], "red-top")
+        self.assertEqual(outfit["bottom"]["id"], "blue-jeans")
+
+    def test_legacy_intent_derives_constraints_from_categories_and_color(self):
+        clothes = [
+            {"id": "red-top", "category": "top", "color": "red"},
+            {"id": "black-top", "category": "top", "color": "black"},
+            {"id": "jeans", "category": "bottom", "subcategory": "jeans"},
+            {"id": "denim-skirt", "category": "bottom", "subcategory": "denim skirt"},
+        ]
+
+        filtered_clothes = filter_clothes(
+            clothes,
+            {
+                "category_preference": ["tops", "jeans"],
+                "color_preference": ["red"],
+            },
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"red-top", "jeans"},
+        )
+
+    def test_jeans_category_constraint_does_not_match_a_denim_skirt(self):
+        clothes = [
+            {
+                "id": "jeans",
+                "category": "bottom",
+                "subcategory": "jeans",
+            },
+            {
+                "id": "denim-skirt",
+                "category": "bottom",
+                "subcategory": "denim skirt",
+            },
+        ]
+
+        filtered_clothes = filter_clothes(
+            clothes,
+            {
+                "item_constraints": [
+                    {"category": "jeans"},
+                ]
+            },
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"jeans"},
+        )
+
+    def test_navratri_occasion_excludes_western_garments(self):
+        clothes = [
+            {
+                "id": "choli",
+                "category": "top",
+                "subcategory": "choli",
+                "occasions": ["festive"],
+            },
+            {
+                "id": "lehenga",
+                "category": "bottom",
+                "subcategory": "lehenga skirt",
+            },
+            {
+                "id": "western-dress",
+                "category": "dress",
+                "subcategory": "mini dress",
+                "cultural_domain": "western",
+            },
+            {
+                "id": "western-jeans",
+                "category": "bottom",
+                "subcategory": "jeans",
+            },
+            {
+                "id": "sandals",
+                "category": "footwear",
+                "subcategory": "sandals",
+            },
+        ]
+
+        filtered_clothes = filter_clothes(
+            clothes,
+            {"occasion": "Navratri"},
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"choli", "lehenga", "sandals"},
+        )
+
+    def test_office_presentation_excludes_festive_outfit_even_when_formal(self):
+        clothes = [
+            {
+                "id": "work-blouse",
+                "category": "top",
+                "subcategory": "blouse",
+                "formality": 4,
+                "occasions": ["office"],
+            },
+            {
+                "id": "work-trousers",
+                "category": "bottom",
+                "subcategory": "trousers",
+                "formality": 4,
+                "occasions": ["office"],
+            },
+            {
+                "id": "navratri-choli",
+                "category": "top",
+                "subcategory": "choli blouse",
+                "formality": 4,
+                "occasions": ["Navratri"],
+            },
+            {
+                "id": "navratri-lehenga",
+                "category": "bottom",
+                "subcategory": "lehenga skirt",
+                "formality": 4,
+                "occasions": ["festive"],
+            },
+        ]
+        intent = {
+            "occasion": "Office presentation",
+            "formality": 4,
+        }
+
+        filtered_clothes = filter_clothes(clothes, intent)
+        recommendations = rank_outfits(
+            build_outfits(filtered_clothes),
+            intent,
+            top_k=5,
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"work-blouse", "work-trousers"},
+        )
+        self.assertEqual(len(recommendations), 1)
+        outfit = recommendations[0]["outfit"]
+        self.assertEqual(outfit["top"]["id"], "work-blouse")
+        self.assertEqual(outfit["bottom"]["id"], "work-trousers")
 
 
 if __name__ == "__main__":

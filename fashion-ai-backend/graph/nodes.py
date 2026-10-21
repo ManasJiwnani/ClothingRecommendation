@@ -243,7 +243,8 @@ def ranking_node(
     ranked_outfits = rank_outfits(
         outfits,
         intent,
-        weather
+        weather,
+        top_k=state.get("top_k", 5),
     )
 
     print(

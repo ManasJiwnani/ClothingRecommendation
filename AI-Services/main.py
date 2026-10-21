@@ -406,6 +406,10 @@ Extract:
 
 - color_preference: List of colors explicitly requested.
 
+- item_constraints: One entry per explicitly requested garment, with its category,
+  color when specified for that garment, and garment type when specified.
+  For example, "red tops with jeans" means a red top and a jeans bottom.
+
 - excluded_items: List of clothing items explicitly not wanted.
 
 Rules:
@@ -416,7 +420,10 @@ Rules:
 
 3. Keep occasion and style as natural descriptive text.
 
-4. Interpret:
+4. Do not substitute different garment types for explicitly requested ones.
+   Keep a color attached only to the garment it describes.
+
+5. Interpret:
 
    "I have a job interview"
 
@@ -424,9 +431,9 @@ Rules:
 
    occasion = "interview"
 
-5. If information is unavailable, return null.
+6. If information is unavailable, return null or an empty item_constraints list.
 
-6. Return only the requested structured fields.
+7. Return only the requested structured fields.
 """
 
 

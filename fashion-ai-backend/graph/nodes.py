@@ -43,19 +43,77 @@ def prepare_intent_node(
 # 2. GET WEATHER
 # =========================================================
 
+# async def weather_node(
+#     state: RecommendationState
+# ):
+
+#     print("\n================================")
+#     print("LANGGRAPH - WEATHER")
+#     print("================================")
+
+#     latitude = state["latitude"]
+#     longitude = state["longitude"]
+
+#     print("Latitude:", latitude)
+#     print("Longitude:", longitude)
+
+#     # Get current weather
+#     try:
+#         weather = await get_current_weather(
+#             latitude,
+#             longitude
+#         )
+#     except (httpx.HTTPError, ssl.SSLError, TimeoutError):
+#         logger.warning(
+#             "Live weather is unavailable for this recommendation request.",
+#             exc_info=True
+#         )
+#         return {
+#             "weather": None,
+#             "weather_context": None,
+#             "weather_error": (
+#                 "Live weather is temporarily unavailable. "
+#                 "These outfit recommendations are based on your style query and closet."
+#             )
+#         }
+
+#     # Convert weather into categories
+#     weather_context = get_weather_context(
+#         weather
+#     )
+
+#     print("Weather:", weather)
+#     print("Weather context:", weather_context)
+
+#     return {
+#         "weather": weather,
+#         "weather_context": weather_context,
+#         "weather_error": None
+#     }
+
 async def weather_node(
     state: RecommendationState
 ):
-
     print("\n================================")
     print("LANGGRAPH - WEATHER")
     print("================================")
 
-    latitude = state["latitude"]
-    longitude = state["longitude"]
+    latitude = state.get("latitude")
+    longitude = state.get("longitude")
 
     print("Latitude:", latitude)
     print("Longitude:", longitude)
+
+    # --------------------------------------------------
+    # Skip weather if coordinates are not provided
+    # --------------------------------------------------
+    if latitude is None or longitude is None:
+        print("Location coordinates omitted. Skipping weather context.")
+        return {
+            "weather": None,
+            "weather_context": None,
+            "weather_error": None  # Set to None so it doesn't show as a warning banner
+        }
 
     # Get current weather
     try:
@@ -90,8 +148,6 @@ async def weather_node(
         "weather_context": weather_context,
         "weather_error": None
     }
-
-
 # =========================================================
 # 3. RETRIEVE CLOTHES
 # =========================================================
@@ -187,7 +243,8 @@ def ranking_node(
     ranked_outfits = rank_outfits(
         outfits,
         intent,
-        weather
+        weather,
+        top_k=state.get("top_k", 5),
     )
 
     print(

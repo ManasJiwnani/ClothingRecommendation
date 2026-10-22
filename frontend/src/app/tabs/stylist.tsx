@@ -127,7 +127,7 @@ const styleBuyLinks: Record<string, string> = {
   effortless: 'https://www.myntra.com/',
   minimal: 'https://www.myntra.com/',
   casual: 'https://www.myntra.com/',
-  ethnic: 'https://www.myntra.com/',
+  ethnic: 'https://linktr.ee/mandlikgauri73?utm_source=linktree_profile_share&ltsid=0cf9236c-4f05-4ba7-9637-d47a4174a1c9',
   evening: 'https://www.myntra.com/',
   feminine: 'https://www.myntra.com/',
 };
@@ -603,6 +603,7 @@ export default function HomeScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}
         >
           {/* ================================================= */}
@@ -681,10 +682,12 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
+    minHeight: 0,
   },
 
   scrollView: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: '#fbf9f6',
   },
 
@@ -692,7 +695,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    paddingBottom: BottomTabInset + 32,
+    paddingBottom: BottomTabInset + 104,
     gap: Spacing.two,
   },
 

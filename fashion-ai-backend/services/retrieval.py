@@ -6,7 +6,7 @@ def retrieve_clothes(
     user_id,
     query_embedding,
     intent,
-    limit=5
+    limit=20
 ):
     # Convert Pydantic Intent → dictionary
     if hasattr(intent, "model_dump"):
@@ -18,7 +18,6 @@ def retrieve_clothes(
         "top",
         "bottom",
         "dress",
-        "footwear"
     ]
 
     for category in categories:

@@ -5,6 +5,7 @@ import os
 import time
 from io import BytesIO
 from pathlib import Path
+from typing import Literal
 from threading import Lock
 from urllib.parse import urlparse
 
@@ -22,6 +23,8 @@ from openai import OpenAI
 from PIL import Image, ImageChops
 from pydantic import BaseModel
 
+from services.supabase_service import get_user_preferences
+
 
 load_dotenv()
 
@@ -29,10 +32,14 @@ MAX_DIMENSION = 384
 JPEG_QUALITY = 90
 PADDING = 0.08
 IMAGE_MODEL = "gpt-image-2.5-flare"
-PERSON_IMAGE_PATH = Path(
-    os.getenv("VTO_PERSON_IMAGE_PATH", Path(__file__).with_name("model.png"))
-)
 
+BASE_DIR = Path(__file__).resolve().parent
+
+# Define file paths for male and female base models
+MODEL_IMAGES = {
+    "male": Path(os.getenv("VTO_MALE_IMAGE_PATH", BASE_DIR / "man.png")),
+    "female": Path(os.getenv("VTO_FEMALE_IMAGE_PATH", BASE_DIR / "female.png")),
+}
 # Cache directory for preprocessed garment images
 GARMENT_CACHE_DIR = Path(__file__).with_name("garment_cache")
 GARMENT_CACHE_DIR.mkdir(exist_ok=True)
@@ -41,16 +48,18 @@ GARMENT_CACHE_MAX_BYTES = 1024**3
 _GARMENT_CACHE_CLEANED = False
 _GARMENT_CACHE_CLEANUP_LOCK = Lock()
 
-# Cache for preprocessed person image
-_PERSON_PREPARED_CACHE: bytes | None = None
+# Cache for preprocessed person images, keyed by model image path.
+_PERSON_PREPARED_CACHE: dict[Path, bytes] = {}
 
 
-def get_person_prepared() -> bytes:
+def get_person_prepared(image_path: Path) -> bytes:
     """Return cached preprocessed person image, computing on first call."""
-    global _PERSON_PREPARED_CACHE
-    if _PERSON_PREPARED_CACHE is None:
-        _PERSON_PREPARED_CACHE = crop_and_prepare(PERSON_IMAGE_PATH.read_bytes())
-    return _PERSON_PREPARED_CACHE
+    resolved_path = image_path.resolve()
+    if resolved_path not in _PERSON_PREPARED_CACHE:
+        _PERSON_PREPARED_CACHE[resolved_path] = crop_and_prepare(
+            resolved_path.read_bytes()
+        )
+    return _PERSON_PREPARED_CACHE[resolved_path]
 
 
 def _get_garment_cache_path(url: str) -> Path:
@@ -179,9 +188,57 @@ app.add_middleware(
 
 
 class VirtualTryOnRequest(BaseModel):
+    user_id: str | None = None
+    gender: Literal["male", "female"] | None = None  # Optional explicit override from frontend
     top: str | None = None
     bottom: str | None = None
     shoes: str | None = None
+
+
+def resolve_user_gender(user_id: str | None, explicit_gender: str | None) -> str:
+    """
+    Resolves the target gender:
+    1. Uses explicit gender from request if passed.
+    2. Queries user_preferences in Supabase using user_id.
+    3. Defaults to 'female' if unconfigured.
+    """
+    if explicit_gender in ("male", "female"):
+        return explicit_gender.lower()
+
+    if user_id:
+        try:
+            prefs = get_user_preferences(user_id)
+            if prefs and prefs.get("gender"):
+                gender_str = str(prefs.get("gender")).lower().strip()
+                if gender_str in ("male", "female"):
+                    return gender_str
+        except Exception as error:
+            print(f"Warning: Failed to fetch user gender from Supabase: {error}")
+
+    return "female"
+
+
+def download_image(url: str) -> bytes:
+    parsed_url = urlparse(url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise ValueError("Image URLs must use HTTP or HTTPS.")
+
+    response = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=30,
+        verify=True,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def download_and_trim_image(url: str) -> Image.Image:
+    image = Image.open(BytesIO(download_image(url))).convert("RGBA")
+    bounds = image.getchannel("A").getbbox()
+    if bounds:
+        image = image.crop(bounds)
+    return image
 
 
 def combine_outfit_for_vto(clothing_urls: dict[str, str | None]) -> bytes:
@@ -350,26 +407,30 @@ def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str | float
             status_code=503,
             detail="OPENAI_API_KEY is not configured.",
         )
-    if not PERSON_IMAGE_PATH.is_file():
+
+    # Resolve gender and select corresponding model photo
+    target_gender = resolve_user_gender(request.user_id, request.gender)
+    person_image_path = MODEL_IMAGES.get(target_gender, MODEL_IMAGES["female"])
+
+    if not person_image_path.is_file():
         raise HTTPException(
             status_code=503,
             detail=(
-                f"Static model photo not found: {PERSON_IMAGE_PATH}. "
-                "Place model.png next to virtual_tryon_flow.py or set "
-                "VTO_PERSON_IMAGE_PATH."
+                f"Model photo not found: {person_image_path}. "
+                f"Ensure {target_gender}.png is placed in {BASE_DIR} or configure environment variables."
             ),
         )
 
     try:
             with Timer("get_person_prepared (cached)"):
-                person_prepared = get_person_prepared()
+                person_prepared = get_person_prepared(person_image_path)
             with Timer("combine_outfit_for_vto (downloads + combine)"):
                 garment_prepared = combine_outfit_for_vto(clothing_urls)
     except Exception as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
-    prompt = """
-Create a realistic virtual try-on.
+    prompt = f"""
+Create a realistic virtual try-on for a {target_gender} model.
 
 The first image is the person.
 The second image is the garment.

@@ -1,20 +1,24 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { getWeather } from "../../services/weather";
 import { getCurrentCoordinates } from "../../services/location";
 import { embedFashionQuery } from "../../services/ai-stylist";
 import {
   getDailyRecommendation,
+  getLikedOutfits,
+  likeOutfit,
   getRecommendations,
+  unlikeOutfit,
   type DailyRecommendationResponse,
   type OutfitRecommendation,
   type RecommendationPreset,
 } from "../../services/recommendation";
 import { supabase } from "../../lib/supabase";
+import { useUserName } from "@/hooks/use-user-name";
 
 import { Image as ExpoImage } from "expo-image";
 import { SymbolView } from "expo-symbols";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import {
   ActivityIndicator,
@@ -176,6 +180,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function getOutfitKey(outfit: Record<string, unknown> | undefined) {
+  if (!outfit) {
+    return "";
+  }
+
+  const pieces = ["top", "bottom", "footwear", "dress", "accessory"]
+    .map((piece) => {
+      const item = outfit[piece];
+      if (!isRecord(item)) {
+        return "";
+      }
+
+      const itemIdentity =
+        item.id ??
+        item.image_url ??
+        [item.color, item.subcategory, item.category]
+          .filter((value): value is string => typeof value === "string" && !!value)
+          .join("/");
+
+      return itemIdentity ? `${piece}:${String(itemIdentity)}` : "";
+    })
+    .filter(Boolean);
+
+  return pieces.length > 0 ? pieces.join("|") : "";
+}
+
 function getItemLabel(value: unknown) {
   if (!isRecord(value)) {
     return "";
@@ -229,6 +259,8 @@ function getWeatherLocationErrorMessage(error: unknown) {
 // ============================================================
 
 export default function StylistScreen() {
+  const userName = useUserName();
+  const firstName = userName.trim().split(/\s+/)[0] ?? "";
 
   const [occasion, setOccasion] = useState("Work");
 
@@ -246,7 +278,11 @@ export default function StylistScreen() {
   const [queryRecommendationError, setQueryRecommendationError] =
     useState<string | null>(null);
 
-  const [isSaved, setIsSaved] = useState(false);
+  const [savedOutfitIds, setSavedOutfitIds] = useState<Record<string, string>>(
+    {}
+  );
+  const [isSavingOutfit, setIsSavingOutfit] = useState(false);
+  const [saveOutfitError, setSaveOutfitError] = useState<string | null>(null);
 
   const [isWorn, setIsWorn] = useState(false);
 
@@ -270,6 +306,13 @@ export default function StylistScreen() {
   const [dailyRecommendationError, setDailyRecommendationError] =
     useState<string | null>(null);
   const [dailyRecommendationRetry, setDailyRecommendationRetry] = useState(0);
+  const selectedDailyOutfit =
+    dailyRecommendation?.recommendations[lookIndex]?.outfit;
+  const selectedDailyOutfitKey = getOutfitKey(selectedDailyOutfit);
+  const savedOutfitId = selectedDailyOutfitKey
+    ? savedOutfitIds[selectedDailyOutfitKey]
+    : undefined;
+  const isSaved = Boolean(savedOutfitId);
 
   const submitPrompt = async () => {
     const query = prompt.trim();
@@ -327,6 +370,109 @@ export default function StylistScreen() {
       setQueryRecommendationLoading(false);
     }
   };
+
+  const toggleSaveOutfit = async () => {
+    if (!selectedDailyOutfit || !selectedDailyOutfitKey || isSavingOutfit) {
+      return;
+    }
+
+    setIsSavingOutfit(true);
+    setSaveOutfitError(null);
+
+    try {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError) {
+        throw authError;
+      }
+      if (!user) {
+        throw new Error("Sign in to save an outfit.");
+      }
+
+      if (savedOutfitId) {
+        await unlikeOutfit(user.id, savedOutfitId);
+        setSavedOutfitIds((previous) => {
+          const updated = { ...previous };
+          delete updated[selectedDailyOutfitKey];
+          return updated;
+        });
+      } else {
+        const response = await likeOutfit(user.id, selectedDailyOutfit);
+        const newSavedOutfitId = response.liked_outfit_id;
+        if (!newSavedOutfitId) {
+          throw new Error("The outfit was saved, but its saved ID was not returned.");
+        }
+        setSavedOutfitIds((previous) => ({
+          ...previous,
+          [selectedDailyOutfitKey]: newSavedOutfitId,
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to update saved outfit:", error);
+      setSaveOutfitError(
+        error instanceof Error
+          ? error.message
+          : "Could not update the saved outfit. Please try again."
+      );
+    } finally {
+      setIsSavingOutfit(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadSavedOutfits = async () => {
+        setSaveOutfitError(null);
+        try {
+          const {
+            data: { user },
+            error: authError,
+          } = await supabase.auth.getUser();
+          if (authError) {
+            throw authError;
+          }
+          if (!user) {
+            if (isActive) {
+              setSavedOutfitIds({});
+            }
+            return;
+          }
+
+          const response = await getLikedOutfits(user.id);
+          const savedIds: Record<string, string> = {};
+          for (const savedOutfit of response.outfits) {
+            const outfit = savedOutfit.outfit;
+            const key = isRecord(outfit) ? getOutfitKey(outfit) : "";
+            if (key && typeof savedOutfit.id === "string") {
+              savedIds[key] = savedOutfit.id;
+            }
+          }
+
+          if (isActive) {
+            setSavedOutfitIds(savedIds);
+          }
+        } catch (error) {
+          console.error("Failed to load saved outfits for the home tab:", error);
+          if (isActive) {
+            setSaveOutfitError(
+              error instanceof Error
+                ? error.message
+                : "Saved outfits could not be loaded."
+            );
+          }
+        }
+      };
+
+      void loadSavedOutfits();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   // ==========================================================
   // LOAD WEATHER
@@ -634,8 +780,6 @@ export default function StylistScreen() {
 
   const staticLook =
     selectedPreset.looks[lookIndex % selectedPreset.looks.length];
-  const selectedDailyOutfit =
-    dailyRecommendation?.recommendations[lookIndex]?.outfit;
   const dailyTop = selectedDailyOutfit?.top || selectedDailyOutfit?.dress;
   const look = selectedDailyOutfit
     ? {
@@ -677,7 +821,6 @@ export default function StylistScreen() {
 
     setIsWorn(false);
 
-    setIsSaved(false);
   };
 
 
@@ -761,48 +904,41 @@ export default function StylistScreen() {
           ================================================== */}
 
           <View style={styles.header}>
-
             <View style={styles.headerTop}>
-
               <View>
-
                 <Text style={styles.kicker}>
                   CLOSET AI
                 </Text>
 
                 <Text style={styles.greeting}>
-                  Good morning
+                  {userName
+                    ? `Welcome back, ${firstName}.`
+                    : "Dress for the day."}
                 </Text>
 
               </View>
 
 
-              {/* DYNAMIC WEATHER */}
-
-              <View style={styles.weather}>
-
-                <Text style={styles.weatherCity}>
-                  TODAY
-                </Text>
-
-                <Text style={styles.temperature}>
-
-                  {weatherLoading
-                    ? "--"
-                    : typeof temperature === "number"
-                      ? `${Math.round(temperature)}°C`
-                      : "--"}
-
-                </Text>
-
+              <View style={styles.headerActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile"
+                  onPress={() => router.push("/tabs/profile")}
+                  style={styles.profileButton}
+                >
+                  <SymbolView
+                    name={{
+                      ios: "person.crop.circle.fill",
+                      android: "account_circle",
+                      web: "account_circle",
+                    }}
+                    size={26}
+                    tintColor="#745a38"
+                  />
+                </Pressable>
               </View>
 
             </View>
-
-
-            <Text style={styles.heroHeading}>
-              Dress for the day.
-            </Text>
 
             <Text style={styles.heroDescription}>
               Your wardrobe, your mood, your moment.
@@ -861,7 +997,6 @@ export default function StylistScreen() {
 
                     setIsWorn(false);
 
-                    setIsSaved(false);
                   }}
 
                   style={[
@@ -935,7 +1070,7 @@ export default function StylistScreen() {
 
             <View style={styles.outfitCardHeader}>
 
-              <View>
+              <View style={styles.outfitCardTitle}>
 
                 <ThemedText
                   style={styles.lookKicker}
@@ -954,28 +1089,37 @@ export default function StylistScreen() {
 
 
               <Pressable
-                accessibilityLabel="Save outfit"
-
-                onPress={() =>
-                  setIsSaved(
-                    (current) => !current
-                  )
-                }
-
-                style={styles.saveButton}
+                accessibilityRole="button"
+                accessibilityLabel={isSaved ? "Remove saved outfit" : "Save outfit"}
+                accessibilityState={{
+                  checked: isSaved,
+                  disabled: isSavingOutfit,
+                }}
+                disabled={isSavingOutfit}
+                onPress={() => void toggleSaveOutfit()}
+                style={[
+                  styles.saveButton,
+                  isSavingOutfit && styles.saveButtonDisabled,
+                ]}
               >
 
                 <SymbolView
                   name={{
-                    ios: isSaved
+                    ios: isSavingOutfit
+                      ? "hourglass"
+                      : isSaved
                       ? "bookmark.fill"
                       : "bookmark",
 
-                    android: isSaved
+                    android: isSavingOutfit
+                      ? "hourglass_empty"
+                      : isSaved
                       ? "bookmark"
                       : "bookmark_border",
 
-                    web: isSaved
+                    web: isSavingOutfit
+                      ? "hourglass_empty"
+                      : isSaved
                       ? "bookmark"
                       : "bookmark_border",
                   }}
@@ -988,7 +1132,11 @@ export default function StylistScreen() {
               </Pressable>
 
             </View>
-
+            {saveOutfitError && (
+              <Text style={styles.saveOutfitError} accessibilityRole="alert">
+                {saveOutfitError}
+              </Text>
+            )}
 
             {/* ==================================================
                 OUTFIT CANVAS
@@ -1241,7 +1389,9 @@ export default function StylistScreen() {
               value={prompt}
               onChangeText={setPrompt}
 
-              placeholder="Ask Élise what to wear..."
+              placeholder={
+                "Ask Elish what to wear..."
+              }
 
               placeholderTextColor="#747878"
 
@@ -1471,107 +1621,49 @@ export default function StylistScreen() {
             </Text>
 
 
-            <View
-              style={styles.quickAccessRow}
+            <Pressable
+              onPress={() =>
+                router.push("/saved" as any)
+              }
+              style={styles.quickCard}
             >
 
-
-              {/* SAVED */}
-
-              <Pressable
-                onPress={() =>
-                  router.push("/saved" as any)
-                }
-
-                style={styles.quickCard}
-              >
-
-                <View style={styles.quickIcon}>
-
-                  <SymbolView
-                    name="plus"
-                    size={19}
-                    tintColor="#745a38"
-                  />
-
-                </View>
-
-
-                <View style={styles.quickText}>
-
-                  <Text style={styles.quickTitle}>
-                    Saved Items
-                  </Text>
-
-
-                  <Text
-                    style={
-                      styles.quickDescription
-                    }
-                  >
-                    See your saved items
-                  </Text>
-
-                </View>
-
+              <View style={styles.quickIcon}>
 
                 <SymbolView
-                  name="chevron.right"
-                  size={16}
-                  tintColor="#9b9892"
+                  name="bookmark.fill"
+                  size={19}
+                  tintColor="#745a38"
                 />
 
-              </Pressable>
+              </View>
 
 
-              {/* ITINERARY */}
+              <View style={styles.quickText}>
 
-              <Pressable
-                onPress={() =>
-                  router.push("/itinerary" as any)
-                }
-
-                style={styles.quickCard}
-              >
-
-                <View style={styles.quickIcon}>
-
-                  <SymbolView
-                    name="camera.metering.center.weighted"
-                    size={19}
-                    tintColor="#745a38"
-                  />
-
-                </View>
+                <Text style={styles.quickTitle}>
+                  Saved Outfits
+                </Text>
 
 
-                <View style={styles.quickText}>
+                <Text
+                  style={
+                    styles.quickDescription
+                  }
+                >
+                  See your saved recommendations
+                </Text>
 
-                  <Text style={styles.quickTitle}>
-                    Itinerary
-                  </Text>
-
-
-                  <Text
-                    style={
-                      styles.quickDescription
-                    }
-                  >
-                    Outfits for your next trip
-                  </Text>
-
-                </View>
+              </View>
 
 
-                <SymbolView
-                  name="chevron.right"
-                  size={16}
-                  tintColor="#9b9892"
-                />
+              <SymbolView
+                name="chevron.right"
+                size={16}
+                tintColor="#9b9892"
+              />
 
-              </Pressable>
-
-            </View>
+            </Pressable>
 
           </View>
 
@@ -1626,7 +1718,7 @@ const styles = StyleSheet.create({
   // ----------------------------------------------------------
 
   header: {
-    gap: 8,
+    gap: 5,
   },
 
   headerTop: {
@@ -1644,41 +1736,31 @@ const styles = StyleSheet.create({
 
   greeting: {
     fontFamily: Fonts.serif,
-    fontSize: 23,
-    lineHeight: 30,
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: "500",
     color: "#1b1c1a",
     marginTop: 4,
   },
-
-  weather: {
-    alignItems: "flex-end",
-    gap: 1,
+ 
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
 
-  weatherCity: {
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    color: "#747878",
-  },
-
-  temperature: {
-    fontFamily: Fonts.serif,
-    fontSize: 19,
-    color: "#745a38",
-  },
-
-  heroHeading: {
-    fontFamily: Fonts.serif,
-    fontSize: 34,
-    lineHeight: 41,
-    fontWeight: "500",
-    color: "#1b1c1a",
-    marginTop: 8,
+  profileButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: "#f0eeea",
   },
 
   heroDescription: {
     fontSize: 14,
+    lineHeight: 20,
     color: "#747878",
   },
 
@@ -1827,10 +1909,16 @@ const styles = StyleSheet.create({
   outfitCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 8,
     paddingHorizontal: 5,
     paddingTop: 3,
     paddingBottom: 10,
+  },
+
+  outfitCardTitle: {
+    flex: 1,
+    minWidth: 0,
   },
 
   lookKicker: {
@@ -1841,19 +1929,34 @@ const styles = StyleSheet.create({
   },
 
   lookTitle: {
+    flexShrink: 1,
+    flexWrap: "wrap",
     fontFamily: Fonts.serif,
     fontSize: 18,
-    lineHeight: 31,
+    lineHeight: 24,
     marginTop: 3,
   },
 
   saveButton: {
+    flexShrink: 0,
     width: 38,
     height: 38,
     borderRadius: 19,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#f0eeea",
+  },
+
+  saveButtonDisabled: {
+    opacity: 0.55,
+  },
+
+  saveOutfitError: {
+    color: "#8b302b",
+    fontSize: 12,
+    lineHeight: 17,
+    paddingHorizontal: 6,
+    paddingBottom: 8,
   },
 
 
@@ -2181,13 +2284,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 
-  quickAccessRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-
   quickCard: {
-    flex: 1,
+    width: "100%",
     minHeight: 72,
     flexDirection: "row",
     alignItems: "center",

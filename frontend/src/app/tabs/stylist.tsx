@@ -1,7 +1,6 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
-import { getCurrentCoordinates } from '../../services/location';
+import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -14,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Fonts, Spacing } from '@/constants/theme';
+import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 
 import casual from '../../assets/casual.jpg';
 import effortless from '../../assets/effortless.jpg';
@@ -28,36 +27,30 @@ import shoulderBag from '../../assets/shoulderBag.png';
 import whiteSneakers from '../../assets/clothes/whiteSneakers.png';
 
 import { ThemedText } from '@/components/themed-text';
-import { supabase } from '../../lib/supabase';
-import {
-  getDailyRecommendation,
-  type DailyRecommendationResponse,
-  type OutfitRecommendation,
-  type RecommendationPreset,
-} from '../../services/recommendation';
+import { useUserName } from '@/hooks/use-user-name';
 // import { ThemedView } from '@/components/themed-view';
 type Vibe = {
   id: string;
   label: string;
 
   icon:
-    | 'sparkles'
-    | 'circle'
-    | 'sun.max.fill'
-    | 'briefcase.fill'
-    | 'moon.fill'
-    | 'heart.fill';
+  | 'sparkles'
+  | 'circle'
+  | 'sun.max.fill'
+  | 'briefcase.fill'
+  | 'moon.fill'
+  | 'heart.fill';
 };
 
 type Occasion = {
   id: string;
   label: string;
   icon:
-    | 'book.fill'
-    | 'briefcase.fill'
-    | 'sun.max.fill'
-    | 'fork.knife'
-    | 'party.popper.fill';
+  | 'book.fill'
+  | 'briefcase.fill'
+  | 'sun.max.fill'
+  | 'fork.knife'
+  | 'party.popper.fill';
 };
 
 type Outfit = {
@@ -129,6 +122,15 @@ const occasions: Occasion[] = [
     icon: 'party.popper.fill',
   },
 ];
+
+const styleBuyLinks: Record<string, string> = {
+  effortless: 'https://www.myntra.com/',
+  minimal: 'https://www.myntra.com/',
+  casual: 'https://www.myntra.com/',
+  ethnic: 'https://www.myntra.com/',
+  evening: 'https://www.myntra.com/',
+  feminine: 'https://www.myntra.com/',
+};
 
 const outfitMap: Record<string, Record<string, Outfit>> = {
   effortless: {
@@ -425,127 +427,14 @@ const wardrobeElevators = [
   },
 ];
 
-function itemLabel(value: unknown) {
-  if (typeof value !== 'object' || value === null) {
-    return '';
-  }
-
-  const item = value as Record<string, unknown>;
-  return [item.color, item.subcategory || item.category]
-    .filter((part): part is string => typeof part === 'string' && !!part)
-    .join(' ');
-}
-
 export default function HomeScreen() {
+  const userName = useUserName();
+
   const [selectedVibe, setSelectedVibe] =
     useState('ethnic');
 
   const [selectedOccasion, setSelectedOccasion] =
     useState('presentation');
-
-  const [dailyRecommendation, setDailyRecommendation] =
-    useState<DailyRecommendationResponse | null>(null);
-  const [recommendationLoading, setRecommendationLoading] =
-    useState(true);
-  const [recommendationError, setRecommendationError] =
-    useState<string | null>(null);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadRecommendation = async () => {
-      setRecommendationLoading(true);
-      setRecommendationError(null);
-
-      try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-        if (authError) {
-          throw authError;
-        }
-        if (!user) {
-          throw new Error('Sign in to get a personalized outfit.');
-        }
-
-        const location = await getCurrentCoordinates();
-        const presetMap: Record<string, RecommendationPreset> = {
-          college: 'college',
-          presentation: 'presentation',
-          'casual-day': 'weekend',
-          dinner: 'dinner',
-          party: 'dinner',
-        };
-        const response = await getDailyRecommendation(
-          user.id,
-          presetMap[selectedOccasion] || 'weather',
-          location.latitude,
-          location.longitude
-        );
-        if (!response.recommendations.length) {
-          throw new Error(
-            'No outfit could be built from your closet. Add more clothing items and try again.'
-          );
-        }
-        if (isActive) {
-          setDailyRecommendation(response);
-        }
-      } catch (error) {
-        console.error('Failed to load daily outfit:', error);
-        if (isActive) {
-          setDailyRecommendation(null);
-          setRecommendationError(
-            error instanceof Error ? error.message : 'Please try again.'
-          );
-        }
-      } finally {
-        if (isActive) {
-          setRecommendationLoading(false);
-        }
-      }
-    };
-
-    void loadRecommendation();
-    return () => {
-      isActive = false;
-    };
-  }, [selectedOccasion]);
-
-  const apiOutfit =
-    dailyRecommendation?.recommendations[0]?.outfit;
-  const recommendedOutfit = apiOutfit
-    ? {
-        name: [
-          itemLabel(apiOutfit.top || apiOutfit.dress),
-          itemLabel(apiOutfit.bottom),
-        ]
-          .filter(Boolean)
-          .join(' + '),
-        description: `Recommended for ${selectedOccasion.replace('-', ' ')} using items from your closet.`,
-        top: itemLabel(apiOutfit.top || apiOutfit.dress),
-        bottom: itemLabel(apiOutfit.bottom),
-        shoes: itemLabel(apiOutfit.footwear),
-        accessory: itemLabel(apiOutfit.accessory),
-      }
-    : null;
-
-  const currentOutfit =
-    recommendedOutfit ||
-    outfitMap[selectedVibe]?.[selectedOccasion] ||
-    outfitMap.ethnic.presentation;
-
-  const currentModelImage =
-    {
-      effortless,
-      minimal,
-      casual,
-      ethnic,
-      evening,
-      feminine,
-    }[selectedVibe] ?? ethnic;
-
-  const temperature = dailyRecommendation?.weather?.temperature;
 
   function selectVibe(vibe: string) {
     setSelectedVibe(vibe);
@@ -554,6 +443,159 @@ export default function HomeScreen() {
   function selectOccasion(occasion: string) {
     setSelectedOccasion(occasion);
   }
+
+  const styleImageRatios: Record<string, number> = {
+    effortless: 736 / 1104,
+    minimal: 1024 / 1426,
+    casual: 1080 / 1920,
+    ethnic: 1084 / 1448,
+    evening: 1151 / 2046,
+    feminine: 736 / 1308,
+  };
+
+  const stylePins = vibes.map((vibe) => ({
+    vibe,
+    image:
+      {
+        effortless,
+        minimal,
+        casual,
+        ethnic,
+        evening,
+        feminine,
+      }[vibe.id] ?? ethnic,
+      imageAspectRatio: styleImageRatios[vibe.id] ?? 2 / 3,
+      buyLink: styleBuyLinks[vibe.id],
+      outfit:
+        outfitMap[vibe.id]?.[selectedOccasion] ??
+        outfitMap.ethnic.presentation,
+  }));
+
+  const styleFeedColumns = [
+    [
+      { type: 'look' as const, item: stylePins[0] },
+      { type: 'product' as const, item: wardrobeElevators[0] },
+      { type: 'look' as const, item: stylePins[2] },
+      { type: 'product' as const, item: wardrobeElevators[2] },
+      { type: 'look' as const, item: stylePins[4] },
+    ],
+    [
+      { type: 'look' as const, item: stylePins[1] },
+      { type: 'product' as const, item: wardrobeElevators[1] },
+      { type: 'look' as const, item: stylePins[3] },
+      { type: 'product' as const, item: wardrobeElevators[3] },
+      { type: 'look' as const, item: stylePins[5] },
+    ],
+  ];
+
+  const renderStylePin = (pin: (typeof stylePins)[number]) => {
+    const selected = pin.vibe.id === selectedVibe;
+
+    return (
+      <View
+        key={pin.vibe.id}
+        style={[
+          styles.stylePin,
+          selected && styles.stylePinSelected,
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+          accessibilityLabel={`Select ${pin.vibe.label} look`}
+          onPress={() => selectVibe(pin.vibe.id)}
+        >
+          <View
+            style={[
+              styles.stylePinImageWrap,
+              { aspectRatio: pin.imageAspectRatio },
+            ]}
+          >
+            <Image
+              source={pin.image}
+              style={styles.stylePinImage}
+              contentFit="contain"
+            />
+            <View style={styles.stylePinImageShade} />
+            <View style={styles.stylePinTag}>
+              <SymbolView
+                name={pin.vibe.icon}
+                size={12}
+                tintColor="#745a38"
+              />
+              <Text style={styles.stylePinTagText}>
+                {pin.vibe.label.toUpperCase()}
+              </Text>
+            </View>
+            {selected && (
+              <View style={styles.selectedPinBadge}>
+                <SymbolView name="checkmark" size={12} tintColor="#ffffff" />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.stylePinInfo}>
+            <Text style={styles.stylePinTitle} numberOfLines={2}>
+              {pin.outfit.name}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={`Buy the ${pin.vibe.label} look`}
+          onPress={() => Linking.openURL(pin.buyLink)}
+          style={styles.buyNowButton}
+        >
+          <Text style={styles.buyNowText}>Buy now</Text>
+          <SymbolView name="arrow.up.right" size={12} tintColor="#ffffff" />
+        </Pressable>
+      </View>
+    );
+  };
+
+  const renderWardrobePin = (item: (typeof wardrobeElevators)[number]) => (
+    <View key={`wardrobe-${item.id}`} style={styles.wardrobePin}>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Explore ${item.name}`}
+        onPress={() => Linking.openURL(item.link)}
+      >
+        <View style={styles.wardrobeImageWrap}>
+          <Image
+            source={item.image}
+            style={styles.wardrobeImage}
+            contentFit="contain"
+          />
+          <View style={styles.wardrobeCategory}>
+            <Text style={styles.wardrobeCategoryText}>{item.category}</Text>
+          </View>
+        </View>
+        <View style={styles.wardrobeInfo}>
+          <Text style={styles.wardrobeName} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={styles.wardrobePrice}>{item.price}</Text>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Shop ${item.name}`}
+        onPress={() => Linking.openURL(item.link)}
+        style={({ pressed }) => [
+          styles.wardrobeShopButton,
+          pressed && styles.wardrobeShopButtonPressed,
+        ]}
+      >
+        <Text style={styles.wardrobeShopText}>Explore online</Text>
+        <SymbolView name="arrow.up.right" size={12} tintColor="#745a38" />
+      </Pressable>
+    </View>
+  );
+
+  const renderFeedItem = (feedItem: (typeof styleFeedColumns)[number][number]) =>
+    feedItem.type === 'look'
+      ? renderStylePin(feedItem.item)
+      : renderWardrobePin(feedItem.item);
 
   return (
     <View style={styles.container}>
@@ -576,297 +618,46 @@ export default function HomeScreen() {
                 <ThemedText
                   style={{
                     fontFamily: Fonts.serif,
-                    color: '#1b1c1a',
                     fontSize: 32,
                     lineHeight: 40,
-                    fontWeight: '500',
+                    fontWeight: "500",
+                    color: "#1b1c1a",
                     marginTop: 4,
                   }}
                 >
-                  Bonjour, Elena
+                  {userName
+                    ? `Bonjour, ${userName.split(/\s+/)[0]}`
+                    : 'Bonjour'}
                 </ThemedText>
               </View>
 
-              <View style={styles.headerWeather}>
-                <ThemedText style={styles.weatherText}>
-                  LOCAL WEATHER
-                </ThemedText>
-
-                <ThemedText style={styles.weatherTemperature}>
-                  {typeof temperature === 'number'
-                    ? `${Math.round(temperature)}°C`
-                    : '--'}
-                </ThemedText>
-              </View>
             </View>
 
             <ThemedText style={styles.subtitle}>
-              Your stylist builds recommendations from your closet and local weather.
-            </ThemedText>
-            {recommendationLoading && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                <ActivityIndicator size="small" color="#745a38" />
-                <Text style={{ color: '#745a38', marginLeft: 8 }}>
-                  Finding a look from your closet...
-                </Text>
-              </View>
-            )}
-            {recommendationError && (
-              <Text style={{ color: '#9b3030', marginTop: 10 }}>
-                Personalized recommendation unavailable: {recommendationError}
+              Discover handpicked outfits tailored to your personal vibe.            </ThemedText>
+          </View>
+
+
+          <View style={styles.feedHeader}>
+            <View>
+              <Text style={styles.sectionKicker}>Elevate Your Wardrobe</Text>
+              <Text style={styles.lookTitle}>Looks for you.</Text>
+            </View>
+            <View style={styles.feedCount}>
+              <Text style={styles.feedCountText}>
+                {vibes.length + wardrobeElevators.length} picks
               </Text>
-            )}
-          </View>
-
-          {/* ================================================= */}
-          {/* VIBE */}
-          {/* ================================================= */}
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionKicker}>
-                  WHAT'S YOUR VIBE?
-                </Text>
-
-                <Text style={styles.sectionTitle}>
-                  Set the mood
-                </Text>
-              </View>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {vibes.map((vibe) => {
-                const selected = selectedVibe === vibe.id;
-
-                return (
-                  <Pressable
-                    key={vibe.id}
-                    onPress={() => selectVibe(vibe.id)}
-                    style={[
-                      styles.vibeChip,
-                      selected && styles.vibeChipSelected,
-                    ]}
-                  >
-                    <SymbolView
-                      name={vibe.icon}
-                      size={15}
-                      tintColor={selected ? '#ffffff' : '#745a38'}
-                    />
-
-                    <Text
-                      style={[
-                        styles.vibeText,
-                        selected && styles.vibeTextSelected,
-                      ]}
-                    >
-                      {vibe.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-
-          {/* <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View>
-                <Text style={styles.sectionKicker}>OCCASION</Text>
-                <Text style={styles.sectionTitle}>Where are you going?</Text>
-              </View>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {occasions.map((occasion) => {
-                const selected = selectedOccasion === occasion.id;
-                return (
-                  <Pressable
-                    key={occasion.id}
-                    onPress={() => selectOccasion(occasion.id)}
-                    style={[
-                      styles.vibeChip,
-                      selected && styles.vibeChipSelected,
-                    ]}
-                  >
-                    <SymbolView
-                      name={occasion.icon}
-                      size={15}
-                      tintColor={selected ? '#ffffff' : '#745a38'}
-                    />
-                    <Text
-                      style={[
-                        styles.vibeText,
-                        selected && styles.vibeTextSelected,
-                      ]}
-                    >
-                      {occasion.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View> */}
-
-          {/* ================================================= */}
-          {/* TODAY'S LOOK */}
-          {/* ================================================= */}
-
-          <View style={styles.lookSection}>
-            <View style={styles.lookHeader}>
-              <View>
-                <Text style={styles.sectionKicker}>
-                  TODAY'S LOOK
-                </Text>
-
-                <Text style={styles.lookTitle}>
-                  {currentOutfit.name}
-                </Text>
-              </View>
-
-              <View style={styles.aiBadge}>
-                <SymbolView
-                  name="sparkles"
-                  size={13}
-                  tintColor="#745a38"
-                />
-
-                <Text style={styles.aiBadgeText}>
-                  {recommendedOutfit ? 'AI CURATED' : 'SAMPLE LOOK'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.lookCard}>
-              <View style={styles.modelContainer}>
-                <Image
-                  source={currentModelImage}
-                  style={styles.modelImage}
-                  contentFit="contain"
-                />
-
-                <View style={styles.modelOverlay} />
-
-                <View style={styles.modelLabel}>
-                  <Text style={styles.modelLabelKicker}>
-                    CLOSET AI
-                  </Text>
-
-                  <Text style={styles.modelLabelText}>
-                    {currentOutfit.description}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.outfitInfo}>
-                <Text style={styles.outfitDescription}>
-                  A look built around your {' '}{selectedVibe}{' '} mood for a {' '}{selectedOccasion}.
-                </Text>
-
-                <View style={styles.outfitItems}>
-                  <OutfitItem label="TOP" value={currentOutfit.top} />
-                  <OutfitItem label="BOTTOM" value={currentOutfit.bottom} />
-                  <OutfitItem label="SHOES" value={currentOutfit.shoes} />
-                  <OutfitItem label="ACCESSORY" value={currentOutfit.accessory} />
-                </View>
-
-                <Pressable style={styles.mirrorButton}>
-                  <Text style={styles.mirrorButtonText}>
-                    Buy Now
-                  </Text>
-
-                  <SymbolView
-                    name="arrow.right"
-                    size={17}
-                    tintColor="#ffffff"
-                  />
-                </Pressable>
-              </View>
             </View>
           </View>
 
-          {/* ================================================= */}
-          {/* WEATHER */}
-          {/* ================================================= */}
-
-          {/* ================================================= */}
-          {/* ELEVATE YOUR WARDROBE */}
-          {/* ================================================= */}
-
-          <View style={styles.section}>
-            <View style={styles.recentHeader}>
-              <View>
-                <Text style={styles.sectionKicker}>
-                  ELEVATE YOUR WARDROBE
-                </Text>
-
-                <Text style={styles.sectionTitle}>
-                  Pieces worth adding
-                </Text>
+          <View style={styles.styleFeed}>
+            {styleFeedColumns.map((column, index) => (
+              <View key={`style-column-${index}`} style={styles.styleFeedColumn}>
+                {column.map(renderFeedItem)}
               </View>
-
-              <Pressable>
-                <Text style={styles.seeAll}>
-                  Explore
-                </Text>
-              </Pressable>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.recentList}
-            >
-              {wardrobeElevators.map((item) => (
-                <View
-                  key={item.id}
-                  style={styles.productCard}
-                >
-                  <Image
-                    source={item.image}
-                    style={styles.productImage}
-                    contentFit="contain"
-                  />
-
-                  <Text style={styles.productCategory}>
-                    {item.category}
-                  </Text>
-
-                  <Text
-                    style={styles.productName}
-                    numberOfLines={2}
-                  >
-                    {item.name}
-                  </Text>
-
-                  <Text style={styles.productPrice}>
-                    {item.price}
-                  </Text>
-
-                  <Pressable
-                    style={styles.shopRow}
-                    onPress={() => Linking.openURL(item.link)}
-                  >
-                    <Text style={styles.shopText}>
-                      Explore online
-                    </Text>
-
-                    <SymbolView
-                      name="arrow.up.right"
-                      size={13}
-                      tintColor="#745a38"
-                    />
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
+            ))}
           </View>
+
           {/* ================================================= */}
           {/* BOTTOM SPACE */}
           {/* ================================================= */}
@@ -874,33 +665,6 @@ export default function HomeScreen() {
           <View style={styles.bottomSpace} />
         </ScrollView>
       </SafeAreaView>
-    </View>
-  );
-}
-
-// =========================================================
-// OUTFIT ITEM COMPONENT
-// =========================================================
-
-function OutfitItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={styles.outfitItem}>
-      <Text style={styles.outfitItemLabel}>
-        {label}
-      </Text>
-
-      <Text
-        style={styles.outfitItemValue}
-        numberOfLines={1}
-      >
-        {value}
-      </Text>
     </View>
   );
 }
@@ -925,16 +689,17 @@ const styles = StyleSheet.create({
   },
 
   content: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    paddingBottom: 120,
-    gap: 24,
+    paddingBottom: BottomTabInset + 32,
+    gap: Spacing.two,
   },
 
   // -------------------------------------------------------
   // HEADER
   // -------------------------------------------------------
-header: {
+  header: {
     gap: 5,
   },
 
@@ -945,40 +710,21 @@ header: {
   },
 
   kicker: {
-    fontFamily: Fonts.sans,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 2,
-    color: '#745a38',
+    color: "#745a38",
   },
 
   subtitle: {
     color: '#747878',
-    fontSize: 14,
+    fontSize: 12,
     lineHeight: 20,
-    maxWidth: 290,
+    maxWidth: 350,
   },
 
-  headerWeather: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
 
-  weatherText: {
-    color: '#747878',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-  },
 
-  weatherTemperature: {
-    color: '#745a38',
-    fontFamily: Fonts.serif,
-    fontSize: 18,
-  },
-
-  
-  
 
   // -------------------------------------------------------
   // SECTIONS
@@ -1013,10 +759,6 @@ header: {
     paddingVertical: 5,
   },
 
-  // -------------------------------------------------------
-  // VIBE
-  // -------------------------------------------------------
-
   vibeChip: {
     height: 38,
     flexDirection: 'row',
@@ -1041,148 +783,238 @@ header: {
     color: '#ffffff',
   },
 
-  // -------------------------------------------------------
-  // TODAY'S LOOK
-  // -------------------------------------------------------
-
-  lookSection: {
-    gap: 10,
-  },
-
-  lookHeader: {
+  feedHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
     justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
 
   lookTitle: {
     fontFamily: Fonts.serif,
-    fontSize: 24,
+    fontSize: 22,
     color: '#1b1c1a',
     marginTop: 3,
   },
 
-  aiBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
+  feedCount: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#fedaae',
-  },
-
-  aiBadgeText: {
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#745a38',
-  },
-
-  lookCard: {
-    overflow: 'hidden',
-    borderRadius: 18,
+    borderRadius: 14,
     backgroundColor: '#efeeeb',
   },
 
-  modelContainer: {
-    width: '100%',
-    height: 430,
-    backgroundColor: '#dededb',
-    position: 'relative',
+  feedCountText: {
+    color: '#747878',
+    fontSize: 10,
+    fontWeight: '600',
   },
 
-  modelImage: {
+  recommendationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+
+  recommendationStatusText: {
+    color: '#745a38',
+    fontSize: 12,
+  },
+
+  recommendationError: {
+    color: '#9b3030',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  styleFeed: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+
+  styleFeedColumn: {
+    flex: 1,
+    gap: 14,
+  },
+
+  stylePin: {
+    overflow: 'hidden',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e8e3dc',
+  },
+
+  stylePinSelected: {
+    borderWidth: 2,
+    borderColor: '#745a38',
+  },
+
+  stylePinImageWrap: {
+    width: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#dededb',
+  },
+
+  stylePinImage: {
     width: '100%',
     height: '100%',
   },
 
-  modelOverlay: {
+  stylePinImageShade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 140,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    height: 44,
+    backgroundColor: 'rgba(27, 28, 26, 0.12)',
   },
 
-  modelLabel: {
+  stylePinTag: {
     position: 'absolute',
-    left: 18,
-    right: 18,
-    bottom: 18,
-  },
-
-  modelLabelKicker: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    color: '#ffffff',
-  },
-
-  modelLabelText: {
-    fontFamily: Fonts.serif,
-    fontSize: 19,
-    lineHeight: 24,
-    color: '#ffffff',
-    marginTop: 3,
-  },
-
-  outfitInfo: {
-    padding: 18,
-    gap: 15,
-  },
-
-  outfitDescription: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#747878',
-  },
-
-  outfitItems: {
-    gap: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#dedbd6',
-  },
-
-  outfitItem: {
-    minHeight: 75,
+    top: 9,
+    left: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#dedbd6',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(251, 249, 246, 0.94)',
   },
 
-  outfitItemLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.1,
+  stylePinTagText: {
     color: '#745a38',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.7,
   },
 
-  outfitItemValue: {
-    flex: 1,
-    textAlign: 'right',
-    fontSize: 12,
-    color: '#444748',
-    marginLeft: 20,
-  },
-
-  mirrorButton: {
-    height: 46,
-    flexDirection: 'row',
+  selectedPinBadge: {
+    position: 'absolute',
+    right: 9,
+    bottom: 9,
+    width: 25,
+    height: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
+    borderRadius: 13,
     backgroundColor: '#1b1c1a',
   },
 
-  mirrorButtonText: {
-    fontSize: 13,
+  stylePinInfo: {
+    paddingHorizontal: 10,
+    paddingTop: 9,
+    paddingBottom: 2,
+  },
+
+  stylePinTitle: {
+    color: '#1b1c1a',
+    fontFamily: Fonts.serif,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  buyNowButton: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 10,
+    marginBottom: 10,
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: '#efeeeb',
+  },
+
+  buyNowText: {
+    color: '#745a38',
+    fontSize: 10,
     fontWeight: '700',
-    color: '#ffffff',
+  },
+
+  wardrobePin: {
+    overflow: 'hidden',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e8e3dc',
+  },
+
+  wardrobeImageWrap: {
+    width: '100%',
+    aspectRatio: 1,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#eeece8',
+  },
+
+  wardrobeImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  wardrobeCategory: {
+    position: 'absolute',
+    top: 9,
+    left: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(251, 249, 246, 0.95)',
+  },
+
+  wardrobeCategoryText: {
+    color: '#745a38',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+
+  wardrobeInfo: {
+    paddingHorizontal: 10,
+    paddingTop: 9,
+    gap: 3,
+  },
+
+  wardrobeName: {
+    color: '#1b1c1a',
+    fontFamily: Fonts.serif,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  wardrobePrice: {
+    color: '#745a38',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  wardrobeShopButton: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginHorizontal: 10,
+    marginTop: 7,
+    marginBottom: 10,
+    borderRadius: 10,
+    backgroundColor: '#efeeeb',
+  },
+
+  wardrobeShopButtonPressed: {
+    backgroundColor: '#e5dfd6',
+    transform: [{ scale: 0.98 }],
+  },
+
+  wardrobeShopText: {
+    color: '#745a38',
+    fontSize: 10,
+    fontWeight: '700',
   },
 
   // -------------------------------------------------------
@@ -1306,80 +1138,6 @@ header: {
     marginTop: 2,
   },
 
-  // -------------------------------------------------------
-  // ELEVATE YOUR WARDROBE
-  // -------------------------------------------------------
-
-  recentHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-
-  seeAll: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#745a38',
-    paddingBottom: 2,
-  },
-
-  recentList: {
-    gap: 16,
-    paddingVertical: 5,
-    paddingHorizontal: 4,
-  },
-
-  productCard: {
-    width: 150,
-    marginRight: 16,
-
-  },
-
-  productImage: {
-    width: 150,
-    height: 155,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#dededb',
-  },
-
-  productCategory: {
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#745a38',
-    marginTop: 8,
-  },
-
-  productName: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '600',
-    color: '#1b1c1a',
-    marginTop: 4,
-    minHeight: 32,
-  },
-
-  productPrice: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#745a38',
-    marginTop: 5,
-  },
-
-  shopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-
-  shopText: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#747878',
-  },
   bottomSpace: {
     height: 10,
   },

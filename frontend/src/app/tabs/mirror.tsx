@@ -8,6 +8,7 @@ import {
   getRecommendations,
   likeOutfit,
   swapOutfitItem,
+  unlikeOutfit,
 } from '../../services/recommendation';
 import {
   View,
@@ -21,8 +22,11 @@ import {
   FlatList,
   Alert,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
-// import ThemedText from '@/components/themed-text';
+import { ThemedText } from '@/components/themed-text';
+import { Fonts } from '@/constants/theme';
 import { SymbolView } from 'expo-symbols';
 import { aiApiFetch } from '../../lib/api';
 
@@ -52,6 +56,7 @@ type Outfit = {
   top: ClothingItem;
   bottom?: ClothingItem;
   footwear?: ClothingItem;
+  savedOutfitId?: string;
   raw: Record<string, unknown>;
 };
 
@@ -118,6 +123,10 @@ function toOutfit(value: unknown): Outfit | null {
     top,
     bottom: bottom || undefined,
     footwear: footwear || undefined,
+    savedOutfitId:
+      typeof value.id === 'string' || typeof value.id === 'number'
+        ? String(value.id)
+        : undefined,
     raw: {
       title,
       occasion:
@@ -221,7 +230,7 @@ export default function MirrorScreen() {
     useState<string | null>(null);
 
   const tryOnRequestId = useRef(0);
-  
+
   // =======================================================
   // ADD LAYER
   // =======================================================
@@ -477,9 +486,9 @@ export default function MirrorScreen() {
   // =======================================================
 
   const toggleLikeOutfit = async (outfit: Outfit) => {
-    if (isOutfitLiked(outfit)) {
-      return;
-    }
+    const savedOutfit = likedOutfits.find(
+      (item) => item.id === outfit.id
+    );
 
     try {
       const {
@@ -493,18 +502,37 @@ export default function MirrorScreen() {
         throw new Error('Sign in to save an outfit.');
       }
 
-      await likeOutfit(user.id, outfit.raw);
+      if (savedOutfit) {
+        if (!savedOutfit.savedOutfitId) {
+          throw new Error('Could not identify the saved look to remove.');
+        }
+
+        await unlikeOutfit(user.id, savedOutfit.savedOutfitId);
+        setLikedOutfits((previous) =>
+          previous.filter(
+            (item) => item.savedOutfitId !== savedOutfit.savedOutfitId
+          )
+        );
+        return;
+      }
+
+      const response = await likeOutfit(user.id, outfit.raw);
+      const savedOutfitId = response.liked_outfit_id;
+      if (!savedOutfitId) {
+        throw new Error('The saved look could not be identified.');
+      }
+
       setLikedOutfits((previous) => [
         {
           ...outfit,
-          id: outfit.id,
+          savedOutfitId,
         },
         ...previous,
       ]);
     } catch (error) {
-      console.error('Failed to save outfit:', error);
+      console.error('Failed to update saved outfit:', error);
       Alert.alert(
-        'Could not save look',
+        'Could not update saved look',
         error instanceof Error ? error.message : 'Please try again.'
       );
     }
@@ -890,6 +918,10 @@ export default function MirrorScreen() {
               onPress={() =>
                 toggleLikeOutfit(item)
               }
+              accessibilityRole="button"
+              accessibilityLabel={
+                liked ? 'Remove from liked looks' : 'Add to liked looks'
+              }
               style={[
                 styles.cardLikeButton,
                 liked &&
@@ -989,6 +1021,8 @@ export default function MirrorScreen() {
               <Pressable
                 onPress={() => handleTryOn(item)}
                 style={styles.tryOnButton}
+                accessibilityRole="button"
+                accessibilityLabel="Try on this look"
               >
                 <SymbolView
                   name={{
@@ -996,8 +1030,8 @@ export default function MirrorScreen() {
                     android: 'center_focus_strong',
                     web: 'center_focus_strong',
                   }}
-                  size={20}
-                  tintColor="#ffffff"
+                  size={16}
+                  tintColor="#E4C18F"
                 />
 
                 <Text style={styles.tryOnButtonText}>
@@ -1019,31 +1053,66 @@ export default function MirrorScreen() {
   // =======================================================
 
   const handleCarouselScroll = (
-    event: any
+    event: NativeSyntheticEvent<NativeScrollEvent>
   ) => {
+    if (outfitCardWidth <= 0) {
+      return;
+    }
 
-    const offsetX =
-      event.nativeEvent
-        .contentOffset.x;
+    const index = Math.round(
+      event.nativeEvent.contentOffset.x / outfitCardWidth
+    );
 
-    const index =
-      Math.round(
-        offsetX /
-          outfitCardWidth
-      );
-
-    if (
-      index >= 0 &&
-      index <
-        outfits.length
-    ) {
-
-      setCurrentOutfitIndex(
-        index
-      );
-
+    if (index >= 0 && index < outfits.length) {
+      setCurrentOutfitIndex(index);
     }
   };
+
+  const renderStylistPrompt = () => (
+    <View style={styles.stylistContainer}>
+      <Text style={styles.stylistLabel}>AI STYLIST</Text>
+
+      <Text style={styles.stylistQuestion}>
+        What are you dressing for today?
+      </Text>
+
+      <Text style={styles.stylistHint}>
+        Tell me the occasion, mood, or style you're looking for.
+      </Text>
+
+      <View style={styles.promptRow}>
+        <TextInput
+          value={command}
+          onChangeText={setCommand}
+          placeholder="e.g. office presentation..."
+          placeholderTextColor="#999"
+          style={styles.promptInput}
+          multiline
+          editable={!isGenerating}
+        />
+
+        <Pressable
+          onPress={handleCommand}
+          disabled={isGenerating || !command.trim()}
+          style={[
+            styles.sendButton,
+            (!command.trim() || isGenerating) && styles.sendButtonDisabled,
+          ]}
+        >
+          <Text style={styles.sendButtonText}>→</Text>
+        </Pressable>
+      </View>
+
+      {isGenerating && (
+        <View style={styles.generatingRow}>
+          <ActivityIndicator size="small" />
+          <Text style={styles.generatingText}>
+            Finding looks for you...
+          </Text>
+        </View>
+      )}
+    </View>
+  );
 
   // =======================================================
   // RENDER
@@ -1067,33 +1136,26 @@ export default function MirrorScreen() {
       {/* HEADER */}
       {/* ================================================= */}
 
-      <View
-        style={
-          styles.header
-        }
-      >
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <ThemedText style={styles.kicker}>CLOSET AI</ThemedText>
+            <ThemedText style={styles.title}>Mirror Preview</ThemedText>
+          </View>
 
-        <Text
-          style={
-            styles.title
-          }
-        >
-          MIRROR
-        </Text>
+        </View>
 
-        <Text
-          style={
-            styles.subtitle
-          }
-        >
+        <ThemedText style={styles.subtitle}>
           Your AI-powered styling space
-        </Text>
+        </ThemedText>
 
       </View>
 
       {/* ================================================= */}
       {/* INITIAL MIRROR */}
       {/* ================================================= */}
+
+      {!hasPrompt && renderStylistPrompt()}
 
       {!hasPrompt && (
 
@@ -1214,54 +1276,55 @@ export default function MirrorScreen() {
 
             </View>
 
-            {/* MIRROR */}
+            {/* TRY-ON PREVIEW */}
 
-            <View
-              style={
-                styles.tryOnMirror
-              }
-            >
-
-              {tryOnResult ? (
-                <Image
-                  source={{ uri: tryOnResult }}
-                  style={styles.generatedTryOnImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <>
-                  <Image
-                    source={WOMAN_IMAGE}
-                    style={styles.modelImage}
-                    resizeMode="contain"
-                  />
-
-                  {selectedTop?.image && (
+            <View style={styles.tryOnPreviewCard}>
+              <View style={styles.tryOnItemsColumn}>
+                {selectedTop?.image && (
+                  <View style={styles.tryOnItemPreview}>
                     <Image
                       source={selectedTop.image}
-                      style={styles.mirrorTop}
+                      style={styles.tryOnItemImage}
                       resizeMode="contain"
                     />
-                  )}
+                    <Text style={styles.tryOnItemLabel}>TOP</Text>
+                  </View>
+                )}
 
-                  {selectedBottom?.image && (
+                {selectedBottom?.image && (
+                  <View style={styles.tryOnItemPreview}>
                     <Image
                       source={selectedBottom.image}
-                      style={styles.mirrorBottom}
+                      style={styles.tryOnItemImage}
                       resizeMode="contain"
                     />
-                  )}
+                    <Text style={styles.tryOnItemLabel}>BOTTOM</Text>
+                  </View>
+                )}
 
-                  {additionalLayer?.image && (
+                {additionalLayer?.image && (
+                  <View style={styles.tryOnItemPreview}>
                     <Image
                       source={additionalLayer.image}
-                      style={styles.mirrorLayer}
+                      style={styles.tryOnItemImage}
                       resizeMode="contain"
                     />
-                  )}
-                </>
-              )}
+                    <Text style={styles.tryOnItemLabel}>LAYER</Text>
+                  </View>
+                )}
+              </View>
 
+              <View style={styles.tryOnModelColumn}>
+                <Image
+                  source={
+                    tryOnResult
+                      ? { uri: tryOnResult }
+                      : WOMAN_IMAGE
+                  }
+                  style={styles.tryOnModelImage}
+                  resizeMode="contain"
+                />
+              </View>
             </View>
 
             {isTryingOn && (
@@ -1276,56 +1339,108 @@ export default function MirrorScreen() {
               </Text>
             )}
 
-            {/* OUTFIT INFO */}
-
-            <View
-              style={
-                styles.tryOnInfo
-              }
-            >
-
-              <Text
-                style={
-                  styles.tryOnInfoTitle
-                }
-              >
-                {selectedOutfit.title}
-              </Text>
-
-              <Text
-                style={
-                  styles.tryOnInfoSubtitle
-                }
-              >
-                {selectedOutfit.occasion}
-                {' • '}
-                {selectedOutfit.vibe}
-              </Text>
-
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={styles.swapActions}>
               <Pressable
                 onPress={() => loadSwapOptions('top')}
                 disabled={isLoadingSwaps}
-                style={styles.addLayerButton}
+                accessibilityRole="button"
+                accessibilityLabel="Swap top"
+                style={({ pressed }) => [
+                  styles.swapButton,
+                  pressed && !isLoadingSwaps && styles.swapButtonPressed,
+                  isLoadingSwaps && styles.swapButtonDisabled,
+                ]}
               >
-                <Text style={styles.addLayerButtonText}>
-                  {isLoadingSwaps && swapCategory === 'top'
-                    ? 'Finding...'
-                    : 'Swap top'}
-                </Text>
+                <View style={styles.swapIconWrap}>
+                  {isLoadingSwaps && swapCategory === 'top' ? (
+                    <ActivityIndicator size="small" color="#745A38" />
+                  ) : (
+                    <SymbolView
+                      name={{
+                        ios: 'tshirt',
+                        android: 'checkroom',
+                        web: 'checkroom',
+                      }}
+                      size={17}
+                      tintColor="#745A38"
+                    />
+                  )}
+                </View>
+                <View style={styles.swapButtonCopy}>
+                  <Text style={styles.swapButtonTitle}>Swap top</Text>
+                  <Text style={styles.swapButtonHint}>
+                    {isLoadingSwaps && swapCategory === 'top'
+                      ? 'Finding options'
+                      : 'Choose another piece'}
+                  </Text>
+                </View>
+                {!isLoadingSwaps && (
+                  <SymbolView
+                    name={{
+                      ios: 'chevron.right',
+                      android: 'chevron_right',
+                      web: 'chevron_right',
+                    }}
+                    size={15}
+                    tintColor="#8A8278"
+                  />
+                )}
               </Pressable>
+
               <Pressable
                 onPress={() => loadSwapOptions('bottom')}
                 disabled={isLoadingSwaps || !selectedOutfit.bottom}
-                style={styles.addLayerButton}
+                accessibilityRole="button"
+                accessibilityLabel="Swap bottom"
+                accessibilityState={{
+                  disabled: isLoadingSwaps || !selectedOutfit.bottom,
+                }}
+                style={({ pressed }) => [
+                  styles.swapButton,
+                  (isLoadingSwaps || !selectedOutfit.bottom) &&
+                    styles.swapButtonDisabled,
+                  pressed &&
+                    !isLoadingSwaps &&
+                    !!selectedOutfit.bottom &&
+                    styles.swapButtonPressed,
+                ]}
               >
-                <Text style={styles.addLayerButtonText}>
-                  {isLoadingSwaps && swapCategory === 'bottom'
-                    ? 'Finding...'
-                    : 'Swap bottom'}
-                </Text>
+                <View style={styles.swapIconWrap}>
+                  {isLoadingSwaps && swapCategory === 'bottom' ? (
+                    <ActivityIndicator size="small" color="#745A38" />
+                  ) : (
+                    <SymbolView
+                      name={{
+                        ios: 'rectangle.split.2x1',
+                        android: 'checkroom',
+                        web: 'checkroom',
+                      }}
+                      size={17}
+                      tintColor="#745A38"
+                    />
+                  )}
+                </View>
+                <View style={styles.swapButtonCopy}>
+                  <Text style={styles.swapButtonTitle}>Swap bottom</Text>
+                  <Text style={styles.swapButtonHint}>
+                    {!selectedOutfit.bottom
+                      ? 'Not available'
+                      : isLoadingSwaps && swapCategory === 'bottom'
+                        ? 'Finding options'
+                        : 'Choose another piece'}
+                  </Text>
+                </View>
+                {!isLoadingSwaps && (
+                  <SymbolView
+                    name={{
+                      ios: 'chevron.right',
+                      android: 'chevron_right',
+                      web: 'chevron_right',
+                    }}
+                    size={15}
+                    tintColor="#8A8278"
+                  />
+                )}
               </Pressable>
             </View>
 
@@ -1578,6 +1693,8 @@ export default function MirrorScreen() {
                 outfitCardWidth
               }
               decelerationRate="fast"
+              onScroll={handleCarouselScroll}
+              scrollEventThrottle={16}
               onMomentumScrollEnd={
                 handleCarouselScroll
               }
@@ -1763,11 +1880,11 @@ export default function MirrorScreen() {
               >
 
                 {likedOutfits.map(
-                  outfit => (
+                  (outfit, index) => (
 
                     <View
                       key={
-                        outfit.id
+                        outfit.savedOutfitId ?? `${outfit.id}-${index}`
                       }
                       style={
                         styles.likedCard
@@ -1828,7 +1945,10 @@ export default function MirrorScreen() {
                           }
                         >
 
-                          <View
+                          <Pressable
+                            onPress={() => toggleLikeOutfit(outfit)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Remove from liked looks"
                             style={
                               styles.unlikeButton
                             }
@@ -1842,7 +1962,7 @@ export default function MirrorScreen() {
                               ♥
                             </Text>
 
-                          </View>
+                          </Pressable>
 
                           <Pressable
                             onPress={() =>
@@ -1905,115 +2025,7 @@ export default function MirrorScreen() {
       {/* AI STYLIST */}
       {/* ================================================= */}
 
-      <View
-        style={
-          styles.stylistContainer
-        }
-      >
-
-        <Text
-          style={
-            styles.stylistLabel
-          }
-        >
-          AI STYLIST
-        </Text>
-
-        <Text
-          style={
-            styles.stylistQuestion
-          }
-        >
-          What are you dressing for
-          today?
-        </Text>
-
-        <Text
-          style={
-            styles.stylistHint
-          }
-        >
-          Tell me the occasion, mood,
-          or style you're looking for.
-        </Text>
-
-        <View
-          style={
-            styles.promptRow
-          }
-        >
-
-          <TextInput
-            value={
-              command
-            }
-            onChangeText={
-              setCommand
-            }
-            placeholder="e.g. office presentation..."
-            placeholderTextColor="#999"
-            style={
-              styles.promptInput
-            }
-            multiline
-            editable={
-              !isGenerating
-            }
-          />
-
-          <Pressable
-            onPress={
-              handleCommand
-            }
-            disabled={
-              isGenerating ||
-              !command.trim()
-            }
-            style={[
-              styles.sendButton,
-              (!command.trim() ||
-                isGenerating) &&
-                styles.sendButtonDisabled,
-            ]}
-          >
-
-            <Text
-              style={
-                styles.sendButtonText
-              }
-            >
-              →
-            </Text>
-
-          </Pressable>
-
-        </View>
-
-        {isGenerating && (
-
-          <View
-            style={
-              styles.generatingRow
-            }
-          >
-
-            <ActivityIndicator
-              size="small"
-            />
-
-            <Text
-              style={
-                styles.generatingText
-              }
-            >
-              Finding looks for you...
-            </Text>
-
-          </View>
-
-        )}
-
-      </View>
+      {hasPrompt && renderStylistPrompt()}
 
     </ScrollView>
   );
@@ -2040,20 +2052,36 @@ const styles = StyleSheet.create({
   // =======================================================
 
   header: {
+    gap: 5,
     marginBottom: 20,
   },
 
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
+  kicker: {
+     fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 2,
+    color: "#745a38",
+  },
+
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#1D1D1D',
+   fontFamily: Fonts.serif,
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: "500",
+    color: "#1b1c1a",
+    marginTop: 4,
   },
 
   subtitle: {
-    marginTop: 4,
+    color: '#747878',
     fontSize: 14,
-    color: '#777',
+    lineHeight: 20,
   },
 
   sectionLabel: {
@@ -2131,7 +2159,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E5E1DC',
-    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.1)',
   },
 
   cardImageArea: {
@@ -2286,7 +2313,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     marginTop: 15,
   },
 
@@ -2531,17 +2558,56 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  tryOnMirror: {
-    height: 520,
+  tryOnPreviewCard: {
+    height: 460,
+    flexDirection: 'row',
     borderRadius: 25,
     overflow: 'hidden',
-    backgroundColor: '#E9E5E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    backgroundColor: '#F0ECE7',
+    borderWidth: 1,
+    borderColor: '#E5E1DC',
   },
 
-  generatedTryOnImage: {
+  tryOnItemsColumn: {
+    width: '36%',
+    padding: 8,
+    gap: 8,
+  },
+
+  tryOnItemPreview: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 5,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E1DC',
+  },
+
+  tryOnItemImage: {
+    flex: 1,
+    width: '100%',
+  },
+
+  tryOnItemLabel: {
+    color: '#777',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    paddingTop: 4,
+  },
+
+  tryOnModelColumn: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#E9E5E0',
+    borderLeftWidth: 1,
+    borderLeftColor: '#E5E1DC',
+  },
+
+  tryOnModelImage: {
     width: '100%',
     height: '100%',
   },
@@ -2560,49 +2626,65 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  mirrorTop: {
-    position: 'absolute',
-    width: '55%',
-    height: '42%',
-    top: '22%',
-    left: '22%',
-  },
-
-  mirrorBottom: {
-    position: 'absolute',
-    width: '58%',
-    height: '45%',
-    top: '50%',
-    left: '21%',
-  },
-
-  mirrorLayer: {
-    position: 'absolute',
-    width: '50%',
-    height: '35%',
-    top: '18%',
-    left: '25%',
-  },
-
-  tryOnInfo: {
-    paddingVertical: 15,
-  },
-
-  tryOnInfoTitle: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#222',
-  },
-
-  tryOnInfoSubtitle: {
-    marginTop: 5,
-    fontSize: 13,
-    color: '#888',
-  },
-
   // =======================================================
   // ADD LAYER
   // =======================================================
+
+  swapActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  swapButton: {
+    flex: 1,
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E1DC',
+    backgroundColor: '#FFFFFF',
+  },
+
+  swapButtonPressed: {
+    backgroundColor: '#F8F4EE',
+    borderColor: '#C9B79F',
+    transform: [{ scale: 0.98 }],
+  },
+
+  swapButtonDisabled: {
+    opacity: 0.52,
+  },
+
+  swapIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4F0EA',
+  },
+
+  swapButtonCopy: {
+    flex: 1,
+    gap: 3,
+  },
+
+  swapButtonTitle: {
+    color: '#262522',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  swapButtonHint: {
+    color: '#81796F',
+    fontSize: 9,
+    lineHeight: 13,
+  },
 
   addLayerButton: {
     height: 52,
@@ -2660,13 +2742,14 @@ const styles = StyleSheet.create({
   // =======================================================
 
 tryOnButton: {
-  height: 40,
-  borderRadius: 10,
+  width: 132,
+  height: 48,
+  borderRadius: 12,
   backgroundColor: '#1b1c1a',
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 8,
+  gap: 6,
   marginTop: 12,
 },
 
@@ -2676,10 +2759,9 @@ tryOnButtonDisabled: {
 
 tryOnButtonText: {
   color: '#ffffff',
-  fontSize: 12,
+  fontSize: 10,
   fontWeight: '700',
-  letterSpacing: 0.2,
-  paddingHorizontal: 10,
+  letterSpacing: 0.4,
 },
 
   // =======================================================
@@ -2741,7 +2823,7 @@ tryOnButtonText: {
 
   promptRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 10,
   },
 

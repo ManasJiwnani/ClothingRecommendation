@@ -7,7 +7,8 @@ import { getWeather } from "../../services/weather";
 import { getCurrentCoordinates } from "../../services/location";
 import { supabase } from "../../lib/supabase";
 import {processClothingImage,getProcessedImageUrl} from "../../services/add_item";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
@@ -25,7 +26,6 @@ import {
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from "@/components/themed-text";
 import { BottomTabInset, Fonts, Spacing } from "@/constants/theme";
 
 type UploadMode = "single" | "outfit";
@@ -94,35 +94,35 @@ export default function ClosetScreen() {
   // LOAD CLOTHES
   // =========================================================
 
-  useEffect(() => {
-    const loadClothes = async () => {
-      try {
-        const user = await getCurrentUser();
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
 
-        if (!user) {
-          console.error("No logged-in user found.");
-          return;
+      const loadClothes = async () => {
+        try {
+          const user = await getCurrentUser();
+
+          if (!user) {
+            console.error("No logged-in user found.");
+            return;
+          }
+
+          const data = await getClothes(user.id);
+
+          if (isActive) {
+            setClothes(data);
+          }
+        } catch (error) {
+          console.error("Failed to load clothes:", error);
         }
+      };
 
-        const userId = user.id;
-
-        console.log("Loading clothes for user:", userId);
-
-        const data = await getClothes(userId);
-
-        console.log("CLOTHES FROM BACKEND:", data);
-
-        setClothes(data);
-      } catch (error) {
-        console.error(
-          "Failed to load clothes:",
-          error
-        );
-      }
-    };
-
-    loadClothes();
-  }, []);
+      void loadClothes();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   // =========================================================
   // LOAD WEATHER
@@ -224,27 +224,6 @@ export default function ClosetScreen() {
     return `${Math.round(
       weather.temperature
     )}°C`;
-  };
-
-  const getShortTemperature = () => {
-    if (
-      weather?.temperature === undefined ||
-      weather?.temperature === null
-    ) {
-      return "--°";
-    }
-
-    return `${Math.round(
-      weather.temperature
-    )}°`;
-  };
-
-  const getCity = () => {
-    if (weather?.city) {
-      return weather.city.toUpperCase();
-    }
-
-    return "YOUR LOCATION";
   };
 
   const getWeatherCondition = () => {
@@ -729,6 +708,11 @@ export default function ClosetScreen() {
     }
   );
 
+  const savedOutfits = clothes.filter(
+    (item) => item.clothing_type === "outfit"
+  );
+  const savedOutfitCount = savedOutfits.length;
+
   // =========================================================
   // CATEGORY LABEL
   // =========================================================
@@ -809,25 +793,6 @@ export default function ClosetScreen() {
                   </Text>
                 </View>
 
-                <View
-                  style={
-                    styles.headerWeather
-                  }
-                >
-                  <Text
-                    style={styles.weatherText}
-                  >
-                    {getCity()}
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.weatherTemperature
-                    }
-                  >
-                    {getTemperature()}
-                  </Text>
-                </View>
               </View>
             </View>
 
@@ -1340,30 +1305,6 @@ export default function ClosetScreen() {
               <View
                 style={styles.headerRight}
               >
-                <View
-                  style={
-                    styles.headerWeather
-                  }
-                >
-                  <Text
-                    style={
-                      styles.weatherText
-                    }
-                  >
-                    {getCity()}
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.weatherTemperature
-                    }
-                  >
-                    {weatherLoading
-                      ? "--°"
-                      : getShortTemperature()}
-                  </Text>
-                </View>
-
                 <Pressable
                   onPress={
                     openAddPiece
@@ -1414,7 +1355,7 @@ export default function ClosetScreen() {
             <Text
               style={styles.metric}
             >
-              12 SAVED OUTFITS
+              {savedOutfitCount} SAVED OUTFITS
             </Text>
           </View>
 
@@ -1527,13 +1468,7 @@ export default function ClosetScreen() {
               <Text
                 style={styles.count}
               >
-                {
-                  clothes.filter(
-                    (item) =>
-                      item.clothing_type ===
-                      "outfit"
-                  ).length
-                }
+                {savedOutfitCount}
               </Text>
             </Pressable>
           </View>
@@ -1591,11 +1526,7 @@ export default function ClosetScreen() {
                 styles.outfitContent
               }
             >
-              {clothes.filter(
-                (item) =>
-                  item.clothing_type ===
-                  "outfit"
-              ).length === 0 ? (
+              {savedOutfitCount === 0 ? (
                 <View
                   style={
                     styles.emptyState
@@ -1646,12 +1577,7 @@ export default function ClosetScreen() {
                 <View
                   style={styles.grid}
                 >
-                  {clothes
-                    .filter(
-                      (item) =>
-                        item.clothing_type ===
-                        "outfit"
-                    )
+                  {savedOutfits
                     .map(
                       (item) => (
                         <View
@@ -1982,25 +1908,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  headerWeather: {
-    alignItems: "flex-end",
-    gap: 2,
-  },
-
-  weatherText: {
-    color: "#747878",
-    fontSize: 9,
-    fontWeight: "700",
-    letterSpacing: 1.1,
-    maxWidth: 100,
-  },
-
-  weatherTemperature: {
-    color: "#745a38",
-    fontFamily: Fonts.serif,
-    fontSize: 18,
-  },
-
   kicker: {
     fontSize: 11,
     fontWeight: "700",
@@ -2019,8 +1926,8 @@ const styles = StyleSheet.create({
 
   description: {
     fontSize: 14,
+    lineHeight: 20,
     color: "#747878",
-    marginTop: 2,
   },
 
   addHeaderButton: {
@@ -2047,9 +1954,12 @@ const styles = StyleSheet.create({
   },
 
   backText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#444748",
+    fontFamily:Fonts.serif,
+    lineHeight:40,
+    fontSize: 32,
+    fontWeight: "500",
+    color: "#1b1c1a",
+    marginTop:4,
   },
 
   uploadSection: {

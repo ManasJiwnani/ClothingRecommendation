@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { supabase } from "../../lib/supabase";
 
 export default function ResetPasswordScreen() {
@@ -63,29 +64,48 @@ export default function ResetPasswordScreen() {
         Create New Password
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="New Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "lock", android: "lock", web: "lock" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="New Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        secureTextEntry
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "checkmark.shield", android: "verified_user", web: "verified_user" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm Password"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
+      </View>
 
       <TouchableOpacity
         style={styles.button}
         onPress={updatePassword}
       >
-        <Text style={styles.buttonText}>
-          Update Password
-        </Text>
+        <>
+          <SymbolView
+            name={{ ios: "checkmark", android: "check", web: "check" }}
+            size={17}
+            tintColor="#fff"
+          />
+          <Text style={styles.buttonText}>Update Password</Text>
+        </>
       </TouchableOpacity>
     </View>
   );
@@ -105,11 +125,19 @@ const styles = StyleSheet.create({
   },
 
   input: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 12,
+  },
+
+  inputContainer: {
     height: 52,
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 15,
   },
 
@@ -117,6 +145,8 @@ const styles = StyleSheet.create({
     height: 52,
     backgroundColor: "#111",
     borderRadius: 12,
+    flexDirection: "row",
+    gap: 8,
     justifyContent: "center",
     alignItems: "center",
   },

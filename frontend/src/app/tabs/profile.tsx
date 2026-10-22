@@ -351,20 +351,6 @@ export default function ProfileScreen() {
                 </ThemedText>
               </View>
 
-              <View style={styles.headerWeather}>
-                <ThemedText
-                  style={styles.weatherText}
-                >
-                  PARIS
-                </ThemedText>
-
-                <ThemedText
-                  style={styles.weatherTemperature}
-                >
-                  19°C
-                </ThemedText>
-              </View>
-
             </View>
 
             <ThemedText style={styles.subtitle}>
@@ -1169,24 +1155,6 @@ const styles = StyleSheet.create({
     color: '#747878',
     fontSize: 14,
     lineHeight: 20,
-  },
-
-  headerWeather: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-
-  weatherText: {
-    color: '#747878',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-  },
-
-  weatherTemperature: {
-    color: '#745a38',
-    fontFamily: Fonts.serif,
-    fontSize: 18,
   },
 
   // -------------------------------------------------------

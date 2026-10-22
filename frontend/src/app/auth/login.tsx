@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "../../lib/supabase";
 
@@ -284,15 +285,22 @@ const handleGoogleLogin = async () => {
         EMAIL
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="you@example.com"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "envelope", android: "mail", web: "mail" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="you@example.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+      </View>
 
       {/* PASSWORD */}
 
@@ -300,13 +308,20 @@ const handleGoogleLogin = async () => {
         PASSWORD
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "lock", android: "lock", web: "lock" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
 
       {/* FORGOT PASSWORD */}
 
@@ -333,9 +348,14 @@ const handleGoogleLogin = async () => {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>
-            Login
-          </Text>
+          <>
+            <Text style={styles.buttonText}>Login</Text>
+            <SymbolView
+              name={{ ios: "arrow.right", android: "arrow_forward", web: "arrow_forward" }}
+              size={16}
+              tintColor="#fff"
+            />
+          </>
         )}
       </TouchableOpacity>
 
@@ -385,7 +405,7 @@ const handleGoogleLogin = async () => {
         }
       >
         <Text style={styles.signup}>
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Text style={styles.signupBold}>
             Sign up
           </Text>
@@ -429,15 +449,23 @@ const styles = StyleSheet.create({
   },
 
   input: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#111",
+  },
+
+  inputContainer: {
     height: 52,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#DDD9D1",
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 17,
-    fontSize: 14,
-    color: "#111",
   },
 
   forgot: {
@@ -451,6 +479,8 @@ const styles = StyleSheet.create({
     height: 52,
     backgroundColor: "#111",
     borderRadius: 12,
+    flexDirection: "row",
+    gap: 9,
     justifyContent: "center",
     alignItems: "center",
   },

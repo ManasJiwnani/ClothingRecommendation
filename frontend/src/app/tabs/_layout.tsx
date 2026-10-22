@@ -148,25 +148,31 @@ export default function TabLayout() {
         }}
       />
 
-      {/* PROFILE */}
+      {/* ITINERARY */}
       <Tabs.Screen
-        name="profile"
+        name="itinerary"
         options={{
-          title: "Profile",
+          title: "Itinerary",
 
-          tabBarIcon: ({ color, focused }) => (
+          tabBarIcon: ({ color }) => (
             <SymbolView
               name={{
-                ios: focused
-                  ? "person.crop.circle.fill"
-                  : "person.crop.circle",
-                android: "account_circle",
-                web: "account_circle",
+                ios: "calendar",
+                android: "calendar_month",
+                web: "calendar_month",
               }}
               size={22}
               tintColor={color}
             />
           ),
+        }}
+      />
+
+      {/* PROFILE - accessible from the Home header */}
+      <Tabs.Screen
+        name="profile"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

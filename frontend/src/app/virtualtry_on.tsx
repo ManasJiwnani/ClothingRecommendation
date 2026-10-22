@@ -8,12 +8,17 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SymbolView } from 'expo-symbols';
+import { aiApiFetch } from '../lib/api';
+
+const WOMAN_IMAGE = require('../assets/woman.png');
 
 export default function TryOnScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{
     top?: string;
     bottom?: string;
@@ -21,6 +26,8 @@ export default function TryOnScreen() {
 
   const [isTryingOn, setIsTryingOn] = useState(false);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
+  const [tryOnError, setTryOnError] = useState<string | null>(null);
+  const [activePiece, setActivePiece] = useState<'top' | 'bottom' | null>(null);
 
   const topImage =
     typeof params.top === 'string' && params.top.length > 0
@@ -40,45 +47,32 @@ export default function TryOnScreen() {
     try {
       setIsTryingOn(true);
       setTryOnResult(null);
+      setTryOnError(null);
 
-      /*
-       * =====================================================
-       * VIRTUAL TRY-ON API
-       * =====================================================
-       *
-       * Replace this section with your FastAPI endpoint.
-       *
-       * Example:
-       *
-       * const response = await fetch(
-       *   'http://YOUR_IP:8000/virtual-try-on',
-       *   {
-       *     method: 'POST',
-       *     headers: {
-       *       'Content-Type': 'application/json',
-       *     },
-       *     body: JSON.stringify({
-       *       top: topImage,
-       *       bottom: bottomImage,
-       *       user_image: USER_IMAGE_URL,
-       *     }),
-       *   }
-       * );
-       *
-       * const data = await response.json();
-       *
-       * setTryOnResult(data.image_url);
-       *
-       */
+      const response = await aiApiFetch<{ image_url: string }>(
+        '/virtual-try-on',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            top: topImage,
+            bottom: bottomImage,
+            shoes: null,
+          }),
+        }
+      );
 
-      // TEMPORARY DEMO DELAY
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!response.image_url) {
+        throw new Error('The virtual try-on service returned no image.');
+      }
 
-      // Temporary result.
-      // Replace this with the image URL returned by your backend.
-      setTryOnResult(null);
+      setTryOnResult(response.image_url);
     } catch (error) {
-      console.error('Try-on error:', error);
+      console.error('Failed to create virtual try-on:', error);
+      setTryOnError(
+        error instanceof Error
+          ? error.message
+          : 'Could not create the virtual try-on. Please try again.'
+      );
     } finally {
       setIsTryingOn(false);
     }
@@ -119,123 +113,170 @@ export default function TryOnScreen() {
               </Text>
 
               <Text style={styles.subtitle}>
-                See how your selected outfit looks on you.
+                Preview your pieces, then create your look.
               </Text>
             </View>
           </View>
 
-          {/* TRY-ON CANVAS */}
-
-          <View style={styles.canvas}>
-            <View style={styles.canvasLabel}>
-              <Text style={styles.canvasLabelText}>
-                OUTFIT PREVIEW
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionKicker}>YOUR OUTFIT</Text>
+              <Text style={styles.sectionTitle}>Selected pieces</Text>
+            </View>
+            <View style={styles.pieceCount}>
+              <Text style={styles.pieceCountText}>
+                {(topImage ? 1 : 0) + (bottomImage ? 1 : 0)} PIECES
               </Text>
             </View>
-
-            {/* TOP */}
-
-            {topImage && (
-              <Image
-                source={{ uri: topImage }}
-                style={styles.topItem}
-                resizeMode="contain"
-              />
-            )}
-
-            {/* BOTTOM */}
-
-            {bottomImage && (
-              <Image
-                source={{ uri: bottomImage }}
-                style={styles.bottomItem}
-                resizeMode="contain"
-              />
-            )}
-
-            {/* LOADING */}
-
-            {isTryingOn && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator
-                  size="large"
-                  color="#ffffff"
-                />
-
-                <Text style={styles.loadingTitle}>
-                  Creating your look
-                </Text>
-
-                <Text style={styles.loadingText}>
-                  Your virtual try-on is being prepared...
-                </Text>
-              </View>
-            )}
-
-            {/* RESULT */}
-
-            {tryOnResult && !isTryingOn && (
-              <View style={styles.resultContainer}>
-                <Image
-                  source={{ uri: tryOnResult }}
-                  style={styles.resultImage}
-                  resizeMode="contain"
-                />
-
-                <View style={styles.resultBadge}>
-                  <Text style={styles.resultBadgeText}>
-                    ✓ TRY-ON COMPLETE
-                  </Text>
-                </View>
-              </View>
-            )}
           </View>
 
-          {/* SELECTED ITEMS */}
+          {/* TRY-ON PREVIEW */}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionKicker}>
-              SELECTED OUTFIT
-            </Text>
-
-            <View style={styles.itemsRow}>
-              {/* TOP CARD */}
-
+          <View
+            style={[
+              styles.previewCard,
+              { height: Math.min(500, Math.max(360, windowHeight * 0.56)) },
+            ]}
+          >
+            <View style={styles.itemsColumn}>
               {topImage && (
-                <View style={styles.itemCard}>
-                  <View style={styles.itemImageContainer}>
-                    <Image
-                      source={{ uri: topImage }}
-                      style={styles.itemImage}
-                      resizeMode="contain"
-                    />
+                <Pressable
+                  onPress={() => setActivePiece('top')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Focus top garment"
+                  accessibilityState={{ selected: activePiece === 'top' }}
+                  style={({ pressed }) => [
+                    styles.itemPreview,
+                    activePiece === 'top' && styles.itemPreviewActive,
+                    pressed && styles.itemPreviewPressed,
+                  ]}
+                >
+                  <Image
+                    source={{ uri: topImage }}
+                    style={styles.itemImage}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.itemFooter}>
+                    <Text style={styles.itemLabel}>TOP</Text>
+                    {activePiece === 'top' && (
+                      <SymbolView
+                        name={{
+                          ios: 'checkmark.circle.fill',
+                          android: 'check_circle',
+                          web: 'check_circle',
+                        }}
+                        size={14}
+                        tintColor="#745a38"
+                      />
+                    )}
                   </View>
-
-                  <Text style={styles.itemLabel}>
-                    TOP
-                  </Text>
-                </View>
+                </Pressable>
               )}
-
-              {/* BOTTOM CARD */}
 
               {bottomImage && (
-                <View style={styles.itemCard}>
-                  <View style={styles.itemImageContainer}>
-                    <Image
-                      source={{ uri: bottomImage }}
-                      style={styles.itemImage}
-                      resizeMode="contain"
-                    />
+                <Pressable
+                  onPress={() => setActivePiece('bottom')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Focus bottom garment"
+                  accessibilityState={{ selected: activePiece === 'bottom' }}
+                  style={({ pressed }) => [
+                    styles.itemPreview,
+                    activePiece === 'bottom' && styles.itemPreviewActive,
+                    pressed && styles.itemPreviewPressed,
+                  ]}
+                >
+                  <Image
+                    source={{ uri: bottomImage }}
+                    style={styles.itemImage}
+                    resizeMode="contain"
+                  />
+                  <View style={styles.itemFooter}>
+                    <Text style={styles.itemLabel}>BOTTOM</Text>
+                    {activePiece === 'bottom' && (
+                      <SymbolView
+                        name={{
+                          ios: 'checkmark.circle.fill',
+                          android: 'check_circle',
+                          web: 'check_circle',
+                        }}
+                        size={14}
+                        tintColor="#745a38"
+                      />
+                    )}
                   </View>
+                </Pressable>
+              )}
+            </View>
 
-                  <Text style={styles.itemLabel}>
-                    BOTTOM
+            <View style={styles.modelColumn}>
+              <View style={styles.modelBadge}>
+                <SymbolView
+                  name={{
+                    ios: tryOnResult ? 'sparkles' : 'person.crop.rectangle',
+                    android: tryOnResult ? 'auto_awesome' : 'person',
+                    web: tryOnResult ? 'auto_awesome' : 'person',
+                  }}
+                  size={12}
+                  tintColor="#745a38"
+                />
+                <Text style={styles.modelBadgeText}>
+                  {tryOnResult ? 'YOUR LOOK' : 'MODEL PREVIEW'}
+                </Text>
+              </View>
+
+              <Image
+                source={tryOnResult ? { uri: tryOnResult } : WOMAN_IMAGE}
+                style={styles.modelImage}
+                resizeMode="contain"
+              />
+
+              {isTryingOn && (
+                <View style={styles.loadingOverlay}>
+                  <ActivityIndicator size="large" color="#ffffff" />
+                  <Text style={styles.loadingTitle}>Creating your look</Text>
+                  <Text style={styles.loadingText}>
+                    Your virtual try-on is being prepared...
                   </Text>
+                </View>
+              )}
+
+              {tryOnResult && !isTryingOn && (
+                <View style={styles.resultBadge}>
+                  <SymbolView
+                    name={{
+                      ios: 'checkmark.circle.fill',
+                      android: 'check_circle',
+                      web: 'check_circle',
+                    }}
+                    size={14}
+                    tintColor="#745a38"
+                  />
+                  <Text style={styles.resultBadgeText}>TRY-ON READY</Text>
                 </View>
               )}
             </View>
           </View>
+
+          <Text style={styles.interactionHint}>
+            Tap a clothing piece to focus it in your outfit.
+          </Text>
+
+          {tryOnError && (
+            <View style={styles.errorBox}>
+              <SymbolView
+                name={{
+                  ios: 'exclamationmark.triangle',
+                  android: 'warning',
+                  web: 'warning',
+                }}
+                size={16}
+                tintColor="#a23b32"
+              />
+              <Text style={styles.errorText} selectable>
+                {tryOnError}
+              </Text>
+            </View>
+          )}
 
           {/* CREATE TRY ON */}
 
@@ -284,9 +325,8 @@ export default function TryOnScreen() {
           {tryOnResult && (
             <View style={styles.resultActions}>
               <Pressable
-                onPress={() => {
-                  setTryOnResult(null);
-                }}
+                onPress={createTryOn}
+                disabled={isTryingOn}
                 style={styles.secondaryButton}
               >
                 <SymbolView
@@ -352,6 +392,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 18,
     paddingBottom: 50,
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   /* HEADER */
@@ -397,52 +440,145 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  /* CANVAS */
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
 
-  canvas: {
+  sectionKicker: {
+    color: '#8a7b68',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+  },
+
+  sectionTitle: {
+    color: '#1b1c1a',
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  pieceCount: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: '#eee9e2',
+  },
+
+  pieceCountText: {
+    color: '#745a38',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+
+  /* TRY-ON PREVIEW */
+
+  previewCard: {
     width: '100%',
-    height: 520,
+    height: 460,
+    flexDirection: 'row',
     borderRadius: 20,
     backgroundColor: '#f1eee9',
     overflow: 'hidden',
-    position: 'relative',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e4e2df',
+  },
+
+  itemsColumn: {
+    width: '36%',
+    padding: 8,
+    gap: 8,
+  },
+
+  itemPreview: {
+    flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    padding: 6,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e4e2df',
+    overflow: 'hidden',
   },
 
-  canvasLabel: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+  itemPreviewActive: {
+    borderColor: '#b18b5b',
+    borderWidth: 2,
+    backgroundColor: '#fffdf9',
   },
 
-  canvasLabelText: {
-    color: '#745a38',
+  itemPreviewPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.98 }],
+  },
+
+  itemFooter: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 5,
+  },
+
+  itemImage: {
+    flex: 1,
+    width: '100%',
+  },
+
+  itemLabel: {
+    color: '#625b52',
     fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1.1,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 
-  topItem: {
-    position: 'absolute',
-    width: '72%',
-    height: '42%',
-    top: '8%',
-    zIndex: 4,
+  modelColumn: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#e9e5e0',
+    borderLeftWidth: 1,
+    borderLeftColor: '#e4e2df',
   },
 
-  bottomItem: {
+  modelImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  modelBadge: {
     position: 'absolute',
-    width: '58%',
-    height: '38%',
-    top: '40%',
-    zIndex: 3,
+    zIndex: 2,
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+
+  modelBadgeText: {
+    color: '#625b52',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+
+  interactionHint: {
+    color: '#8a8278',
+    fontSize: 11,
+    marginTop: -10,
+    marginBottom: 14,
   },
 
   /* LOADING */
@@ -472,28 +608,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  /* RESULT */
-
-  resultContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  resultImage: {
-    width: '100%',
-    height: '100%',
-  },
-
   resultBadge: {
     position: 'absolute',
     bottom: 14,
     left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 9,
@@ -507,53 +628,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  /* SECTION */
-
-  section: {
-    marginBottom: 18,
-  },
-
-  sectionKicker: {
-    color: '#745a38',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    marginBottom: 10,
-  },
-
-  itemsRow: {
+  errorBox: {
     flexDirection: 'row',
-    gap: 10,
-  },
-
-  itemCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 8,
-  },
-
-  itemImageContainer: {
-    height: 100,
-    borderRadius: 10,
-    backgroundColor: '#f4f1ec',
-    overflow: 'hidden',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff1ef',
+    borderWidth: 1,
+    borderColor: '#f0d0cc',
+    marginBottom: 12,
   },
 
-  itemImage: {
-    width: '90%',
-    height: '90%',
-  },
-
-  itemLabel: {
-    color: '#747878',
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: 8,
-    marginLeft: 3,
+  errorText: {
+    flex: 1,
+    color: '#a23b32',
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   /* BUTTON */

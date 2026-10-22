@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { supabase } from "../../lib/supabase";
 
 export default function NameScreen() {
@@ -137,7 +138,7 @@ export default function NameScreen() {
       <View style={styles.content}>
 
         <Text style={styles.eyebrow}>
-          LET'S GET STARTED
+          LET&apos;S GET STARTED
         </Text>
 
         <Text style={styles.title}>
@@ -153,18 +154,25 @@ export default function NameScreen() {
           YOUR NAME
         </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Purva"
-          placeholderTextColor="#999"
-          value={name}
-          onChangeText={setName}
-          autoFocus
-          autoCapitalize="words"
-          autoCorrect={false}
-          returnKeyType="done"
-          onSubmitEditing={handleContinue}
-        />
+        <View style={styles.inputContainer}>
+          <SymbolView
+            name={{ ios: "person", android: "person", web: "person" }}
+            size={18}
+            tintColor="#8A8175"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Purva"
+            placeholderTextColor="#999"
+            value={name}
+            onChangeText={setName}
+            autoFocus
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={handleContinue}
+          />
+        </View>
 
         <TouchableOpacity
           style={[
@@ -177,9 +185,14 @@ export default function NameScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>
-              Continue
-            </Text>
+            <>
+              <Text style={styles.buttonText}>Continue</Text>
+              <SymbolView
+                name={{ ios: "arrow.right", android: "arrow_forward", web: "arrow_forward" }}
+                size={16}
+                tintColor="#fff"
+              />
+            </>
           )}
         </TouchableOpacity>
 
@@ -232,14 +245,22 @@ const styles = StyleSheet.create({
   },
 
   input: {
+    flex: 1,
+    height: 52,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#111",
+  },
+
+  inputContainer: {
     height: 54,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#DDD9D1",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#111",
+    paddingHorizontal: 14,
     marginBottom: 18,
   },
 
@@ -247,6 +268,8 @@ const styles = StyleSheet.create({
     height: 54,
     backgroundColor: "#111",
     borderRadius: 12,
+    flexDirection: "row",
+    gap: 9,
     justifyContent: "center",
     alignItems: "center",
   },

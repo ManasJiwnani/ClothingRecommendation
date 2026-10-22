@@ -189,3 +189,13 @@ export function getLikedOutfits(userId: string) {
     outfits: Record<string, unknown>[];
   }>(`/outfits/liked/${encodeURIComponent(userId)}`);
 }
+
+export function unlikeOutfit(userId: string, likedOutfitId: string) {
+  return apiFetch<{
+    success: boolean;
+    message: string;
+  }>(
+    `/outfits/liked/${encodeURIComponent(userId)}/${encodeURIComponent(likedOutfitId)}`,
+    { method: "DELETE" }
+  );
+}

@@ -18,6 +18,10 @@ class FakeQuery:
         self.operations.append(("insert", data))
         return self
 
+    def delete(self):
+        self.operations.append(("delete",))
+        return self
+
     def select(self, columns):
         self.operations.append(("select", columns))
         return self
@@ -74,3 +78,18 @@ class SavedOutfitsTests(unittest.TestCase):
         self.assertEqual(supabase.table_name, "saved_outfits")
         self.assertEqual(result, expected)
         self.assertIn(("eq", "user_id", "user-id"), supabase.query.operations)
+
+    def test_unlike_outfit_deletes_only_the_users_saved_outfit(self):
+        supabase = FakeSupabase(FakeResponse([]))
+
+        with patch.object(
+            supabase_service,
+            "get_supabase_client",
+            return_value=supabase,
+        ):
+            supabase_service.unlike_outfit("user-id", "saved-id")
+
+        self.assertEqual(supabase.table_name, "saved_outfits")
+        self.assertIn(("delete",), supabase.query.operations)
+        self.assertIn(("eq", "user_id", "user-id"), supabase.query.operations)
+        self.assertIn(("eq", "id", "saved-id"), supabase.query.operations)

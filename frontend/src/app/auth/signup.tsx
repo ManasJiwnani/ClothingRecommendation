@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { supabase } from "../../lib/supabase";
 
 export default function SignupScreen() {
@@ -89,30 +90,51 @@ export default function SignupScreen() {
         Create your account to build your personal wardrobe.
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "envelope", android: "mail", web: "mail" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "lock", android: "lock", web: "lock" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        secureTextEntry
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "checkmark.shield", android: "verified_user", web: "verified_user" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm Password"
+          secureTextEntry
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
+      </View>
 
       <TouchableOpacity
         style={styles.button}
@@ -122,14 +144,26 @@ export default function SignupScreen() {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Create Account</Text>
+          <>
+            <SymbolView
+              name={{ ios: "person.badge.plus", android: "person_add", web: "person_add" }}
+              size={18}
+              tintColor="#fff"
+            />
+            <Text style={styles.buttonText}>Create Account</Text>
+          </>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push("/auth/login")}>
-        <Text style={styles.loginText}>
-          Already have an account? Log in
-        </Text>
+        <View style={styles.loginRow}>
+          <SymbolView
+            name={{ ios: "arrow.left", android: "arrow_back", web: "arrow_back" }}
+            size={15}
+            tintColor="#555"
+          />
+          <Text style={styles.loginText}>Already have an account? Log in</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -156,19 +190,29 @@ const styles = StyleSheet.create({
   },
 
   input: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
+
+  inputContainer: {
     height: 52,
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 15,
-    fontSize: 16,
   },
 
   button: {
     height: 52,
     borderRadius: 12,
     backgroundColor: "#111",
+    flexDirection: "row",
+    gap: 9,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
@@ -181,8 +225,14 @@ const styles = StyleSheet.create({
   },
 
   loginText: {
-    textAlign: "center",
-    marginTop: 20,
     color: "#555",
+  },
+
+  loginRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 20,
   },
 });

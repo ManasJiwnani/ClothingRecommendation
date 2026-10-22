@@ -5,6 +5,7 @@ import os
 import time
 from io import BytesIO
 from pathlib import Path
+from threading import Lock
 from urllib.parse import urlparse
 
 import cv2
@@ -35,6 +36,10 @@ PERSON_IMAGE_PATH = Path(
 # Cache directory for preprocessed garment images
 GARMENT_CACHE_DIR = Path(__file__).with_name("garment_cache")
 GARMENT_CACHE_DIR.mkdir(exist_ok=True)
+GARMENT_CACHE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+GARMENT_CACHE_MAX_BYTES = 1024**3
+_GARMENT_CACHE_CLEANED = False
+_GARMENT_CACHE_CLEANUP_LOCK = Lock()
 
 # Cache for preprocessed person image
 _PERSON_PREPARED_CACHE: bytes | None = None
@@ -54,20 +59,85 @@ def _get_garment_cache_path(url: str) -> Path:
     return GARMENT_CACHE_DIR / f"{url_hash}.jpg"
 
 
+def cleanup_garment_cache(now: float | None = None) -> tuple[int, int]:
+    """Remove garment cache files unused for 30 days or exceeding the 1 GB limit."""
+    current_time = time.time() if now is None else now
+    expired_before = current_time - GARMENT_CACHE_MAX_AGE_SECONDS
+    cached_files: list[tuple[float, Path, int]] = []
+    removed_count = 0
+    removed_bytes = 0
+
+    for path in GARMENT_CACHE_DIR.glob("*.jpg"):
+        if not path.is_file():
+            continue
+        stat = path.stat()
+        entry = (stat.st_mtime, path, stat.st_size)
+        if stat.st_mtime < expired_before:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            removed_count += 1
+            removed_bytes += stat.st_size
+        else:
+            cached_files.append(entry)
+
+    total_bytes = sum(size for _, _, size in cached_files)
+    for _, path, size in sorted(cached_files, key=lambda entry: entry[0]):
+        if total_bytes <= GARMENT_CACHE_MAX_BYTES:
+            break
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            total_bytes -= size
+            continue
+        total_bytes -= size
+        removed_count += 1
+        removed_bytes += size
+
+    if removed_count:
+        print(
+            f"[CACHE] Removed {removed_count} garment image(s), "
+            f"freed {removed_bytes / (1024**2):.2f} MiB."
+        )
+    return removed_count, removed_bytes
+
+
+def _ensure_garment_cache_cleaned() -> None:
+    global _GARMENT_CACHE_CLEANED
+    if _GARMENT_CACHE_CLEANED:
+        return
+    with _GARMENT_CACHE_CLEANUP_LOCK:
+        if not _GARMENT_CACHE_CLEANED:
+            cleanup_garment_cache()
+            _GARMENT_CACHE_CLEANED = True
+
+
 def get_garment_prepared(url: str) -> bytes:
     """Return cached preprocessed garment image, computing on first call."""
+    _ensure_garment_cache_cleaned()
     cache_path = _get_garment_cache_path(url)
     if cache_path.exists():
-        return cache_path.read_bytes()
+        try:
+            garment_bytes = cache_path.read_bytes()
+        except FileNotFoundError:
+            pass
+        else:
+            try:
+                os.utime(cache_path, None)
+            except FileNotFoundError:
+                pass
+            return garment_bytes
     
     # Download and process the garment image
     async def _download_and_process():
         async with aiohttp.ClientSession() as session:
             image_bytes = await _download_image_async(session, url)
             return crop_and_prepare(image_bytes)
-    
+
     garment_bytes = asyncio.run(_download_and_process())
     cache_path.write_bytes(garment_bytes)
+    cleanup_garment_cache()
     return garment_bytes
 
 

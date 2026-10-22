@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { supabase } from "../../lib/supabase";
 
 export default function ForgotPassword() {
@@ -55,17 +56,24 @@ export default function ForgotPassword() {
       <Text style={styles.title}>Forgot Password?</Text>
 
       <Text style={styles.description}>
-        Enter your email and we'll send you a link to reset your password.
+        Enter your email and we&apos;ll send you a link to reset your password.
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+      <View style={styles.inputContainer}>
+        <SymbolView
+          name={{ ios: "envelope", android: "mail", web: "mail" }}
+          size={17}
+          tintColor="#8A8175"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+      </View>
 
       <TouchableOpacity
         style={styles.button}
@@ -75,18 +83,28 @@ export default function ForgotPassword() {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>
-            Send Reset Link
-          </Text>
+          <>
+            <SymbolView
+              name={{ ios: "paperplane", android: "send", web: "send" }}
+              size={16}
+              tintColor="#fff"
+            />
+            <Text style={styles.buttonText}>Send Reset Link</Text>
+          </>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() => router.back()}
       >
-        <Text style={styles.back}>
-          Back to Login
-        </Text>
+        <View style={styles.backRow}>
+          <SymbolView
+            name={{ ios: "arrow.left", android: "arrow_back", web: "arrow_back" }}
+            size={15}
+            tintColor="#555"
+          />
+          <Text style={styles.back}>Back to Login</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -114,11 +132,19 @@ const styles = StyleSheet.create({
   },
 
   input: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 12,
+  },
+
+  inputContainer: {
     height: 52,
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 20,
   },
 
@@ -126,6 +152,8 @@ const styles = StyleSheet.create({
     height: 52,
     backgroundColor: "#111",
     borderRadius: 12,
+    flexDirection: "row",
+    gap: 8,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -136,8 +164,14 @@ const styles = StyleSheet.create({
   },
 
   back: {
-    textAlign: "center",
-    marginTop: 20,
     color: "#555",
+  },
+
+  backRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 20,
   },
 });

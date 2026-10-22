@@ -230,3 +230,16 @@ def get_liked_outfits(user_id: str):
     )
 
     return response.data
+
+
+def unlike_outfit(user_id: str, liked_outfit_id: str):
+    supabase = get_supabase_client()
+
+    (
+        supabase
+        .table("saved_outfits")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("id", liked_outfit_id)
+        .execute()
+    )

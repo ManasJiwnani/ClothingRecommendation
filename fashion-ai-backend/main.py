@@ -51,6 +51,7 @@ from services.supabase_service import (
     prepare_clothing_data,
     like_outfit,
     get_liked_outfits,
+    unlike_outfit,
     get_user_preferences,
 )
 
@@ -1025,6 +1026,24 @@ async def get_liked_outfits_endpoint(user_id: str):
             "success": True,
             "count": len(outfits),
             "outfits": outfits
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@app.delete("/outfits/liked/{user_id}/{liked_outfit_id}")
+async def unlike_outfit_endpoint(user_id: str, liked_outfit_id: str):
+
+    try:
+        unlike_outfit(user_id, liked_outfit_id)
+
+        return {
+            "success": True,
+            "message": "Outfit removed from liked looks"
         }
 
     except Exception as e:

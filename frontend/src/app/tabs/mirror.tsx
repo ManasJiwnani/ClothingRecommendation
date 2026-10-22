@@ -7,6 +7,7 @@ import {
   getLikedOutfits,
   getRecommendations,
   likeOutfit,
+  unlikeOutfit,
   swapOutfitItem,
 } from '../../services/recommendation';
 import {
@@ -21,10 +22,14 @@ import {
   FlatList,
   Alert,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 // import ThemedText from '@/components/themed-text';
 import { SymbolView } from 'expo-symbols';
 import { aiApiFetch } from '../../lib/api';
+import { useUserName } from '@/hooks/use-user-name';
+import { Fonts, Spacing } from '@/constants/theme';
 
 // =========================================================
 // ASSETS
@@ -47,6 +52,7 @@ type ClothingItem = {
 
 type Outfit = {
   id: string;
+  savedOutfitId?: string;
   title: string;
   occasion: string;
   vibe: string;
@@ -107,6 +113,10 @@ function toOutfit(value: unknown): Outfit | null {
 
   return {
     id: `${top.id}-${bottom?.id || 'single'}-${footwear?.id || 'no-footwear'}`,
+    savedOutfitId:
+      typeof value.id === 'string' || typeof value.id === 'number'
+        ? String(value.id)
+        : undefined,
     title,
     occasion:
       typeof storedOutfit.occasion === 'string'
@@ -139,55 +149,79 @@ function toOutfit(value: unknown): Outfit | null {
 // =========================================================
 
 export default function MirrorScreen() {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const outfitCardWidth = Math.max(0, screenWidth - 40);
+  const userName = useUserName();
+  const firstName = userName.trim().split(/\s+/)[0] ?? '';
   // =======================================================
 // USER PROFILE & GENDER
 // =======================================================
 
 const [userGender, setUserGender] = useState<'male' | 'female'>('female');
 const [userId, setUserId] = useState<string | null>(null);
+const [likedOutfits, setLikedOutfits] = useState<Outfit[]>([]);
 
 useEffect(() => {
   let isActive = true;
 
-  const loadUserProfileAndLiked = async () => {
+  const loadMirrorUserData = async () => {
     try {
       const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (authError || !user) return;
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      const user = session?.user;
+      if (!user) return;
       if (isActive) setUserId(user.id);
 
-      // Fetch gender from user_preferences table
-      const { data: prefData } = await supabase
-        .from('user_preferences')
-        .select('gender')
-        .eq('id', user.id)
-        .maybeSingle();
+      try {
+        const { data: prefData, error: preferencesError } = await supabase
+          .from('user_preferences')
+          .select('gender')
+          .eq('id', user.id)
+          .maybeSingle();
 
-      if (isActive && prefData?.gender) {
-        const normalized = String(prefData.gender).toLowerCase().trim();
-        setUserGender(normalized === 'male' ? 'male' : 'female');
+        if (preferencesError) {
+          throw preferencesError;
+        }
+
+        if (isActive && prefData?.gender) {
+          const normalized = String(prefData.gender).toLowerCase().trim();
+          setUserGender(normalized === 'male' ? 'male' : 'female');
+        }
+      } catch (error) {
+        console.error('Failed to load Mirror user preferences:', error);
       }
 
-      // Load liked outfits
-      const response = await getLikedOutfits(user.id);
-      if (isActive) {
-        setLikedOutfits(
-          response.outfits
-            .map((outfit) => toOutfit(outfit))
-            .filter((outfit): outfit is Outfit => outfit !== null)
-        );
+      try {
+        const response = await getLikedOutfits(user.id);
+        if (isActive) {
+          setLikedOutfits(
+            response.outfits
+              .map((outfit) => toOutfit(outfit))
+              .filter((outfit): outfit is Outfit => outfit !== null)
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load saved outfits:', error);
+        if (isActive) {
+          Alert.alert(
+            'Could not load saved looks',
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        }
       }
     } catch (error) {
-      console.error('Failed to load user profile or saved outfits:', error);
+      console.error('Failed to load Mirror session:', error);
     }
   };
 
-  void loadUserProfileAndLiked();
+  void loadMirrorUserData();
 
   return () => {
     isActive = false;
@@ -227,9 +261,6 @@ useEffect(() => {
   // =======================================================
   // LIKED OUTFITS
   // =======================================================
-
-  const [likedOutfits, setLikedOutfits] =
-    useState<Outfit[]>([]);
 
   // =======================================================
   // LIKED LOOK SCREEN
@@ -288,6 +319,12 @@ useEffect(() => {
   // =======================================================
 
   const currentOutfit = outfits[currentOutfitIndex];
+  const selectedPreviewItems = [
+    { key: 'top', label: 'TOP', item: selectedTop },
+    { key: 'bottom', label: 'BOTTOM', item: selectedBottom },
+    { key: 'footwear', label: 'SHOES', item: selectedOutfit?.footwear || null },
+    { key: 'layer', label: 'LAYER', item: additionalLayer },
+  ].filter((piece) => piece.item?.image);
 
   const generateVirtualTryOn = async (
     top: ClothingItem | null,
@@ -357,47 +394,6 @@ useEffect(() => {
       }
     }
   };
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadLikedOutfits = async () => {
-      try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser();
-        if (error) {
-          throw error;
-        }
-        if (!user) {
-          return;
-        }
-
-        const response = await getLikedOutfits(user.id);
-        if (isActive) {
-          setLikedOutfits(
-            response.outfits
-              .map((outfit) => toOutfit(outfit))
-              .filter((outfit): outfit is Outfit => outfit !== null)
-          );
-        }
-      } catch (error) {
-        console.error('Failed to load saved outfits:', error);
-        if (isActive) {
-          Alert.alert(
-            'Could not load saved looks',
-            error instanceof Error ? error.message : 'Please try again.'
-          );
-        }
-      }
-    };
-
-    void loadLikedOutfits();
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   // =======================================================
   // PROMPT
@@ -546,34 +542,60 @@ useEffect(() => {
   // =======================================================
 
   const toggleLikeOutfit = async (outfit: Outfit) => {
-    if (isOutfitLiked(outfit)) {
-      return;
-    }
-
     try {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-      if (error) {
-        throw error;
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        if (error) {
+          throw error;
+        }
+        currentUserId = session?.user.id ?? null;
       }
-      if (!user) {
+
+      if (!currentUserId) {
         throw new Error('Sign in to save an outfit.');
       }
 
-      await likeOutfit(user.id, outfit.raw);
+      const authenticatedUserId = currentUserId;
+
+      const savedOutfit = likedOutfits.find(
+        (item) => item.id === outfit.id
+      );
+
+      if (savedOutfit) {
+        if (!savedOutfit.savedOutfitId) {
+          throw new Error('Could not identify the saved look to remove.');
+        }
+
+        await unlikeOutfit(authenticatedUserId, savedOutfit.savedOutfitId);
+        setLikedOutfits((previous) =>
+          previous.filter(
+            (item) => item.savedOutfitId !== savedOutfit.savedOutfitId
+          )
+        );
+        return;
+      }
+
+      const response = await likeOutfit(authenticatedUserId, outfit.raw);
+      const savedOutfitId = response.liked_outfit_id;
+      if (!savedOutfitId) {
+        throw new Error('The saved look could not be identified.');
+      }
+
       setLikedOutfits((previous) => [
         {
           ...outfit,
-          id: outfit.id,
+          savedOutfitId,
         },
         ...previous,
       ]);
     } catch (error) {
-      console.error('Failed to save outfit:', error);
+      console.error('Failed to update saved outfit:', error);
       Alert.alert(
-        'Could not save look',
+        'Could not update saved look',
         error instanceof Error ? error.message : 'Please try again.'
       );
     }
@@ -959,6 +981,11 @@ useEffect(() => {
               onPress={() =>
                 toggleLikeOutfit(item)
               }
+              accessibilityRole="button"
+              accessibilityLabel={
+                liked ? 'Remove from liked looks' : 'Add to liked looks'
+              }
+              accessibilityState={{ selected: liked }}
               style={[
                 styles.cardLikeButton,
                 liked &&
@@ -1057,7 +1084,9 @@ useEffect(() => {
               {/* ======================================== */}
               <Pressable
                 onPress={() => handleTryOn(item)}
-                style={styles.tryOnButton}
+                accessibilityRole="button"
+                accessibilityLabel="Try on this look"
+                style={styles.recommendationTryOnButton}
               >
                 <SymbolView
                   name={{
@@ -1066,7 +1095,7 @@ useEffect(() => {
                     web: 'center_focus_strong',
                   }}
                   size={20}
-                  tintColor="#ffffff"
+                  tintColor="#E4C18F"
                 />
 
                 <Text style={styles.tryOnButtonText}>
@@ -1088,31 +1117,61 @@ useEffect(() => {
   // =======================================================
 
   const handleCarouselScroll = (
-    event: any
+    event: NativeSyntheticEvent<NativeScrollEvent>
   ) => {
+    if (outfitCardWidth <= 0) {
+      return;
+    }
 
-    const offsetX =
-      event.nativeEvent
-        .contentOffset.x;
+    const index = Math.round(
+      event.nativeEvent.contentOffset.x / outfitCardWidth
+    );
 
-    const index =
-      Math.round(
-        offsetX /
-          outfitCardWidth
-      );
-
-    if (
-      index >= 0 &&
-      index <
-        outfits.length
-    ) {
-
-      setCurrentOutfitIndex(
-        index
-      );
-
+    if (index >= 0 && index < outfits.length) {
+      setCurrentOutfitIndex(index);
     }
   };
+
+  const renderStylistPrompt = () => (
+    <View style={styles.stylistContainer}>
+      <Text style={styles.stylistLabel}>AI STYLIST</Text>
+      <Text style={styles.stylistQuestion}>
+        What are you dressing for today?
+      </Text>
+      <Text style={styles.stylistHint}>
+        Tell me the occasion, mood, or style you&apos;re looking for.
+      </Text>
+
+      <View style={styles.promptRow}>
+        <TextInput
+          value={command}
+          onChangeText={setCommand}
+          placeholder="e.g. office presentation..."
+          placeholderTextColor="#999"
+          style={styles.promptInput}
+          multiline
+          editable={!isGenerating}
+        />
+        <Pressable
+          onPress={handleCommand}
+          disabled={isGenerating || !command.trim()}
+          style={[
+            styles.sendButton,
+            (!command.trim() || isGenerating) && styles.sendButtonDisabled,
+          ]}
+        >
+          <Text style={styles.sendButtonText}>→</Text>
+        </Pressable>
+      </View>
+
+      {isGenerating && (
+        <View style={styles.generatingRow}>
+          <ActivityIndicator size="small" />
+          <Text style={styles.generatingText}>Finding looks for you...</Text>
+        </View>
+      )}
+    </View>
+  );
 
   // =======================================================
   // RENDER
@@ -1136,33 +1195,24 @@ useEffect(() => {
       {/* HEADER */}
       {/* ================================================= */}
 
-      <View
-        style={
-          styles.header
-        }
-      >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.kicker}>CLOSET AI</Text>
+          <Text style={styles.greeting}>
+            Mirror Preview
+          </Text>
+        </View>
 
-        <Text
-          style={
-            styles.title
-          }
-        >
-          MIRROR
+        <Text style={styles.heroDescription}>
+          Your AI-powered styling space.
         </Text>
-
-        <Text
-          style={
-            styles.subtitle
-          }
-        >
-          Your AI-powered styling space
-        </Text>
-
       </View>
 
       {/* ================================================= */}
       {/* INITIAL MIRROR */}
       {/* ================================================= */}
+
+      {!hasPrompt && renderStylistPrompt()}
 
       {!hasPrompt && (
 
@@ -1282,58 +1332,59 @@ useEffect(() => {
             {/* MIRROR */}
 
             <View
-              style={
-                styles.tryOnMirror
-              }
+              style={[
+                styles.tryOnPreviewCard,
+                { height: Math.min(520, Math.max(360, screenHeight * 0.56)) },
+              ]}
             >
+              <View style={styles.tryOnItemsColumn}>
+                {selectedPreviewItems.map(({ key, label, item }) => {
+                  if (!item?.image) {
+                    return null;
+                  }
 
-              {tryOnResult ? (
+                  return (
+                    <View key={key} style={styles.tryOnItemPreview}>
+                      <Image
+                        source={item.image}
+                        style={styles.tryOnItemImage}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.tryOnItemLabel}>{label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.tryOnModelColumn}>
+                <View style={styles.tryOnModelBadge}>
+                  <SymbolView
+                    name={{
+                      ios: tryOnResult ? 'sparkles' : 'person.crop.rectangle',
+                      android: tryOnResult ? 'auto_awesome' : 'person',
+                      web: tryOnResult ? 'auto_awesome' : 'person',
+                    }}
+                    size={12}
+                    tintColor="#745a38"
+                  />
+                  <Text style={styles.tryOnModelBadgeText}>
+                    {tryOnResult ? 'YOUR LOOK' : 'MODEL PREVIEW'}
+                  </Text>
+                </View>
                 <Image
-                  source={{ uri: tryOnResult }}
-                  style={styles.generatedTryOnImage}
+                  source={tryOnResult ? { uri: tryOnResult } : currentModelImage}
+                  style={styles.tryOnModelImage}
                   resizeMode="contain"
                 />
-              ) : (
-                <>
-                  <Image
-                    source={currentModelImage}
-                    style={styles.modelImage}
-                    resizeMode="contain"
-                  />
-
-                  {selectedTop?.image && (
-                    <Image
-                      source={selectedTop.image}
-                      style={styles.mirrorTop}
-                      resizeMode="contain"
-                    />
-                  )}
-
-                  {selectedBottom?.image && (
-                    <Image
-                      source={selectedBottom.image}
-                      style={styles.mirrorBottom}
-                      resizeMode="contain"
-                    />
-                  )}
-
-                  {additionalLayer?.image && (
-                    <Image
-                      source={additionalLayer.image}
-                      style={styles.mirrorLayer}
-                      resizeMode="contain"
-                    />
-                  )}
-                </>
-              )}
-
+                {isTryingOn && (
+                  <View style={styles.tryOnLoadingOverlay}>
+                    <ActivityIndicator size="large" color="#ffffff" />
+                    <Text style={styles.tryOnLoadingText}>
+                      Generating your look...
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
-
-            {isTryingOn && (
-              <Text style={styles.tryOnStatus} selectable>
-                Generating your virtual try-on...
-              </Text>
-            )}
 
             {tryOnError && (
               <Text style={styles.tryOnError} selectable>
@@ -1343,54 +1394,107 @@ useEffect(() => {
 
             {/* OUTFIT INFO */}
 
-            <View
-              style={
-                styles.tryOnInfo
-              }
-            >
-
-              <Text
-                style={
-                  styles.tryOnInfoTitle
-                }
-              >
-                {selectedOutfit.title}
-              </Text>
-
-              <Text
-                style={
-                  styles.tryOnInfoSubtitle
-                }
-              >
-                {selectedOutfit.occasion}
-                {' • '}
-                {selectedOutfit.vibe}
-              </Text>
-
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={styles.swapButtonRow}>
               <Pressable
                 onPress={() => loadSwapOptions('top')}
                 disabled={isLoadingSwaps}
-                style={styles.addLayerButton}
+                accessibilityRole="button"
+                accessibilityLabel="Swap top"
+                style={({ pressed }) => [
+                  styles.swapButton,
+                  pressed && !isLoadingSwaps && styles.swapButtonPressed,
+                  isLoadingSwaps && styles.swapButtonDisabled,
+                ]}
               >
-                <Text style={styles.addLayerButtonText}>
-                  {isLoadingSwaps && swapCategory === 'top'
-                    ? 'Finding...'
-                    : 'Swap top'}
-                </Text>
+                <View style={styles.swapIconWrap}>
+                  {isLoadingSwaps && swapCategory === 'top' ? (
+                    <ActivityIndicator size="small" color="#745A38" />
+                  ) : (
+                    <SymbolView
+                      name={{
+                        ios: 'tshirt',
+                        android: 'checkroom',
+                        web: 'checkroom',
+                      }}
+                      size={17}
+                      tintColor="#745A38"
+                    />
+                  )}
+                </View>
+                <View style={styles.swapButtonCopy}>
+                  <Text style={styles.swapButtonTitle}>Swap top</Text>
+                  <Text style={styles.swapButtonHint}>
+                    {isLoadingSwaps && swapCategory === 'top'
+                      ? 'Finding options'
+                      : 'Choose another piece'}
+                  </Text>
+                </View>
+                {!isLoadingSwaps && (
+                  <SymbolView
+                    name={{
+                      ios: 'chevron.right',
+                      android: 'chevron_right',
+                      web: 'chevron_right',
+                    }}
+                    size={15}
+                    tintColor="#8A8278"
+                  />
+                )}
               </Pressable>
               <Pressable
                 onPress={() => loadSwapOptions('bottom')}
                 disabled={isLoadingSwaps || !selectedOutfit.bottom}
-                style={styles.addLayerButton}
+                accessibilityRole="button"
+                accessibilityLabel="Swap bottom"
+                accessibilityState={{
+                  disabled: isLoadingSwaps || !selectedOutfit.bottom,
+                }}
+                style={({ pressed }) => [
+                  styles.swapButton,
+                  (isLoadingSwaps || !selectedOutfit.bottom) &&
+                    styles.swapButtonDisabled,
+                  pressed &&
+                    !isLoadingSwaps &&
+                    !!selectedOutfit.bottom &&
+                    styles.swapButtonPressed,
+                ]}
               >
-                <Text style={styles.addLayerButtonText}>
-                  {isLoadingSwaps && swapCategory === 'bottom'
-                    ? 'Finding...'
-                    : 'Swap bottom'}
-                </Text>
+                <View style={styles.swapIconWrap}>
+                  {isLoadingSwaps && swapCategory === 'bottom' ? (
+                    <ActivityIndicator size="small" color="#745A38" />
+                  ) : (
+                    <SymbolView
+                      name={{
+                        ios: 'rectangle.split.2x1',
+                        android: 'checkroom',
+                        web: 'checkroom',
+                      }}
+                      size={17}
+                      tintColor="#745A38"
+                    />
+                  )}
+                </View>
+                <View style={styles.swapButtonCopy}>
+                  <Text style={styles.swapButtonTitle}>Swap bottom</Text>
+                  <Text style={styles.swapButtonHint}>
+                    {!selectedOutfit.bottom
+                      ? 'Not available'
+                      : isLoadingSwaps && swapCategory === 'bottom'
+                        ? 'Finding options'
+                        : 'Choose another piece'}
+                  </Text>
+                </View>
+                {!isLoadingSwaps && (
+                  <SymbolView
+                    name={{
+                      ios: 'chevron.right',
+                      android: 'chevron_right',
+                      web: 'chevron_right',
+                    }}
+                    size={15}
+                    tintColor="#8A8278"
+                  />
+                )}
               </Pressable>
             </View>
 
@@ -1643,6 +1747,8 @@ useEffect(() => {
                 outfitCardWidth
               }
               decelerationRate="fast"
+              onScroll={handleCarouselScroll}
+              scrollEventThrottle={16}
               onMomentumScrollEnd={
                 handleCarouselScroll
               }
@@ -1832,7 +1938,7 @@ useEffect(() => {
 
                     <View
                       key={
-                        outfit.id
+                        outfit.savedOutfitId ?? outfit.id
                       }
                       style={
                         styles.likedCard
@@ -1893,7 +1999,10 @@ useEffect(() => {
                           }
                         >
 
-                          <View
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Remove from liked looks"
+                            onPress={() => void toggleLikeOutfit(outfit)}
                             style={
                               styles.unlikeButton
                             }
@@ -1907,7 +2016,7 @@ useEffect(() => {
                               ♥
                             </Text>
 
-                          </View>
+                          </Pressable>
 
                           <Pressable
                             onPress={() =>
@@ -1966,119 +2075,7 @@ useEffect(() => {
 
         )}
 
-      {/* ================================================= */}
-      {/* AI STYLIST */}
-      {/* ================================================= */}
-
-      <View
-        style={
-          styles.stylistContainer
-        }
-      >
-
-        <Text
-          style={
-            styles.stylistLabel
-          }
-        >
-          AI STYLIST
-        </Text>
-
-        <Text
-          style={
-            styles.stylistQuestion
-          }
-        >
-          What are you dressing for
-          today?
-        </Text>
-
-        <Text
-          style={
-            styles.stylistHint
-          }
-        >
-          Tell me the occasion, mood,
-          or style you're looking for.
-        </Text>
-
-        <View
-          style={
-            styles.promptRow
-          }
-        >
-
-          <TextInput
-            value={
-              command
-            }
-            onChangeText={
-              setCommand
-            }
-            placeholder="e.g. office presentation..."
-            placeholderTextColor="#999"
-            style={
-              styles.promptInput
-            }
-            multiline
-            editable={
-              !isGenerating
-            }
-          />
-
-          <Pressable
-            onPress={
-              handleCommand
-            }
-            disabled={
-              isGenerating ||
-              !command.trim()
-            }
-            style={[
-              styles.sendButton,
-              (!command.trim() ||
-                isGenerating) &&
-                styles.sendButtonDisabled,
-            ]}
-          >
-
-            <Text
-              style={
-                styles.sendButtonText
-              }
-            >
-              →
-            </Text>
-
-          </Pressable>
-
-        </View>
-
-        {isGenerating && (
-
-          <View
-            style={
-              styles.generatingRow
-            }
-          >
-
-            <ActivityIndicator
-              size="small"
-            />
-
-            <Text
-              style={
-                styles.generatingText
-              }
-            >
-              Finding looks for you...
-            </Text>
-
-          </View>
-
-        )}
-
-      </View>
+      {hasPrompt && renderStylistPrompt()}
 
     </ScrollView>
   );
@@ -2105,20 +2102,31 @@ const styles = StyleSheet.create({
   // =======================================================
 
   header: {
-    marginBottom: 20,
+    marginHorizontal: -4,
+    marginBottom: Spacing.one,
+    gap: 5,
   },
 
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#1D1D1D',
+  kicker: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+    color: '#745a38',
   },
 
-  subtitle: {
+  greeting: {
+    fontFamily: Fonts.serif,
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '500',
+    color: '#1b1c1a',
     marginTop: 4,
+  },
+
+  heroDescription: {
     fontSize: 14,
-    color: '#777',
+    lineHeight: 20,
+    color: '#747878',
   },
 
   sectionLabel: {
@@ -2196,7 +2204,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E5E1DC',
-    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.1)',
   },
 
   cardImageArea: {
@@ -2275,6 +2282,7 @@ const styles = StyleSheet.create({
 
   cardTextArea: {
     flex: 1,
+    minWidth: 0,
     paddingRight: 10,
   },
 
@@ -2315,6 +2323,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
+  },
+
+  recommendationTryOnButton: {
+    width: 82,
+    height: 52,
+    flexShrink: 0,
+    borderRadius: 10,
+    backgroundColor: '#222',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
 
   lensIcon: {
@@ -2596,26 +2616,101 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  tryOnMirror: {
-    height: 520,
-    borderRadius: 25,
+  tryOnPreviewCard: {
+    width: '100%',
+    flexDirection: 'row',
+    borderRadius: 20,
+    backgroundColor: '#F1EEE9',
     overflow: 'hidden',
-    backgroundColor: '#E9E5E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E4E2DF',
   },
 
-  generatedTryOnImage: {
+  tryOnItemsColumn: {
+    width: '36%',
+    padding: 8,
+    gap: 8,
+  },
+
+  tryOnItemPreview: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E2DF',
+    overflow: 'hidden',
+  },
+
+  tryOnItemImage: {
+    flex: 1,
+    width: '100%',
+  },
+
+  tryOnItemLabel: {
+    color: '#625B52',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  tryOnModelColumn: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#E9E5E0',
+    borderLeftWidth: 1,
+    borderLeftColor: '#E4E2DF',
+  },
+
+  tryOnModelImage: {
     width: '100%',
     height: '100%',
   },
 
-  tryOnStatus: {
-    marginTop: 10,
-    color: '#745A38',
-    fontSize: 13,
+  tryOnModelBadge: {
+    position: 'absolute',
+    zIndex: 2,
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+
+  tryOnModelBadgeText: {
+    color: '#625B52',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+
+  tryOnLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(27,28,26,0.76)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  tryOnLoadingText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
     textAlign: 'center',
+    paddingHorizontal: 12,
   },
 
   tryOnError: {
@@ -2625,49 +2720,64 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  mirrorTop: {
-    position: 'absolute',
-    width: '55%',
-    height: '42%',
-    top: '22%',
-    left: '22%',
-  },
-
-  mirrorBottom: {
-    position: 'absolute',
-    width: '58%',
-    height: '45%',
-    top: '50%',
-    left: '21%',
-  },
-
-  mirrorLayer: {
-    position: 'absolute',
-    width: '50%',
-    height: '35%',
-    top: '18%',
-    left: '25%',
-  },
-
-  tryOnInfo: {
-    paddingVertical: 15,
-  },
-
-  tryOnInfoTitle: {
-    fontSize: 19,
-    fontWeight: '800',
-    color: '#222',
-  },
-
-  tryOnInfoSubtitle: {
-    marginTop: 5,
-    fontSize: 13,
-    color: '#888',
-  },
-
   // =======================================================
   // ADD LAYER
   // =======================================================
+
+  swapButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  swapButton: {
+    flex: 1,
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E1DC',
+    backgroundColor: '#FFFFFF',
+  },
+
+  swapButtonPressed: {
+    backgroundColor: '#F8F4EE',
+    borderColor: '#C9B79F',
+    transform: [{ scale: 0.98 }],
+  },
+
+  swapButtonDisabled: {
+    opacity: 0.52,
+  },
+
+  swapIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4F0EA',
+  },
+
+  swapButtonCopy: {
+    flex: 1,
+    gap: 3,
+  },
+
+  swapButtonTitle: {
+    color: '#262522',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  swapButtonHint: {
+    color: '#81796F',
+    fontSize: 9,
+    lineHeight: 13,
+  },
 
   addLayerButton: {
     height: 52,
@@ -2725,14 +2835,15 @@ const styles = StyleSheet.create({
   // =======================================================
 
 tryOnButton: {
-  height: 40,
-  borderRadius: 10,
-  backgroundColor: '#1b1c1a',
+width: '100%',
+height: 52,
+borderRadius: 16,
+backgroundColor: '#1b1c1a',
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'center',
   gap: 8,
-  marginTop: 12,
+  marginBottom: 10,
 },
 
 tryOnButtonDisabled: {
@@ -2741,10 +2852,9 @@ tryOnButtonDisabled: {
 
 tryOnButtonText: {
   color: '#ffffff',
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: '700',
   letterSpacing: 0.2,
-  paddingHorizontal: 10,
 },
 
   // =======================================================

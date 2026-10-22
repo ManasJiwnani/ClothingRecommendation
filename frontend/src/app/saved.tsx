@@ -106,12 +106,13 @@ export default function SavedScreen() {
 
         try {
           const {
-            data: { user },
+            data: { session },
             error: authError,
-          } = await supabase.auth.getUser();
+          } = await supabase.auth.getSession();
           if (authError) {
             throw authError;
           }
+          const user = session?.user;
           if (!user) {
             throw new Error("Sign in to view your saved outfits.");
           }
@@ -153,12 +154,13 @@ export default function SavedScreen() {
 
     try {
       const {
-        data: { user },
+        data: { session },
         error: authError,
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getSession();
       if (authError) {
         throw authError;
       }
+      const user = session?.user;
       if (!user) {
         throw new Error("Sign in to remove a saved outfit.");
       }

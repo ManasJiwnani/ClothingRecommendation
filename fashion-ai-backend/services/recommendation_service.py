@@ -1,4 +1,5 @@
 from services.intent_matching import (
+    CONSTRAINT_CATEGORY_ALIASES,
     is_professional_item_appropriate,
     is_professional_occasion,
     get_item_constraints,
@@ -82,7 +83,7 @@ def filter_clothes(clothes, intent):
         if professional_occasion and not is_professional_item_appropriate(item):
             continue
 
-        if item_constraints and not any(
+        if item.get("category") in {"top", "bottom", "dress"} and item_constraints and not any(
             item_matches_constraint(item, constraint)
             for constraint in item_constraints
         ):
@@ -113,25 +114,44 @@ def filter_clothes(clothes, intent):
         # 2. STRICT TRADITIONAL / ETHNIC FILTER
         # -------------------------
         if is_strictly_traditional:
-            if item_aesthetic and item_aesthetic not in traditional_domains:
-                continue
+            item_descriptor = " ".join(
+                (
+                    category,
+                    subcategory,
+                    name,
+                    style,
+                    item_aesthetic,
+                    " ".join(item_occasions),
+                )
+            ).casefold()
 
-            garment_description = " ".join((subcategory, name, style)).casefold()
-            has_traditional_garment_term = any(
-                term in garment_description
-                for term in traditional_garment_terms
-            )
-            has_festival_occasion = any(
-                festival in tagged_occasion
-                for tagged_occasion in item_occasions
-                for festival in ("navratri", "garba", "dandiya")
-            )
-            if not (
-                item_aesthetic in traditional_domains
-                or has_traditional_garment_term
-                or has_festival_occasion
-            ):
-                continue
+            if category in {"footwear", "accessory", "outerwear"}:
+                pass
+            else:
+                if item_aesthetic and item_aesthetic not in traditional_domains:
+                    if not any(
+                        term in item_descriptor
+                        for term in traditional_garment_terms
+                    ):
+                        continue
+
+                garment_description = " ".join((subcategory, name, style)).casefold()
+                has_traditional_garment_term = any(
+                    term in garment_description
+                    for term in traditional_garment_terms
+                )
+                has_festival_occasion = any(
+                    festival in tagged_occasion
+                    for tagged_occasion in item_occasions
+                    for festival in ("navratri", "garba", "dandiya", "diwali", "festive", "wedding")
+                )
+                has_traditional_aesthetic = item_aesthetic in traditional_domains
+                if not (
+                    has_traditional_aesthetic
+                    or has_traditional_garment_term
+                    or has_festival_occasion
+                ):
+                    continue
 
         # -------------------------
         # 3. GARMENT TYPE HARD-CHECK (lehenga, choli, etc.)
@@ -139,17 +159,43 @@ def filter_clothes(clothes, intent):
         if category_preference:
             wants_lehenga = any("lehenga" in cp or "ghagra" in cp for cp in category_preference)
             wants_choli = any("choli" in cp for cp in category_preference)
+            wants_kurta = any("kurta" in cp for cp in category_preference)
+            wants_saree = any("saree" in cp or "sari" in cp for cp in category_preference)
+            wants_anarkali = any("anarkali" in cp for cp in category_preference)
 
-            # If user wants a lehenga skirt, don't pick non-lehenga bottoms (like mermaid or pencil skirts)
             if wants_lehenga and category in ["bottom", "skirt"]:
                 if "lehenga" not in subcategory and "lehenga" not in name and "ghagra" not in name:
                     continue
 
-            # If user wants a choli, prioritize choli tops over basic generic blouses/tees
-            if wants_choli and category in ["top"]:
-                if "choli" not in subcategory and "choli" not in name:
-                    # Allow blouses only if no direct choli indicator, or dock points
-                    pass
+            if wants_choli and category == "top":
+                if "choli" not in subcategory and "choli" not in name and "blouse" not in subcategory:
+                    continue
+
+            if wants_kurta and category == "top":
+                if "kurta" not in subcategory and "kurta" not in name and "anarkali" not in subcategory and "anarkali" not in name:
+                    continue
+
+            if wants_saree and category == "dress":
+                if "saree" not in subcategory and "saree" not in name and "sari" not in subcategory and "sari" not in name:
+                    continue
+
+            if wants_anarkali and category == "dress":
+                if "anarkali" not in subcategory and "anarkali" not in name:
+                    continue
+
+        if item_constraints:
+            for constraint in item_constraints:
+                if not constraint:
+                    continue
+                expected_category = CONSTRAINT_CATEGORY_ALIASES.get(str(constraint.get("category") or "").casefold())
+                if expected_category and category != expected_category:
+                    continue
+                requested_garment = str(constraint.get("garment") or "").casefold()
+                if requested_garment and requested_garment not in " ".join((subcategory, name)):
+                    continue
+                requested_color = str(constraint.get("color") or "").casefold()
+                if requested_color and requested_color not in color:
+                    continue
 
         score = 0
 

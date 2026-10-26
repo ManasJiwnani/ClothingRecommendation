@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -21,6 +21,11 @@ import ethnic from '../../assets/ethnic.jpg';
 import evening from '../../assets/evening.jpg';
 import minimal from '../../assets/minimal.jpg';
 import feminine from '../../assets/feminine.jpg';
+import oldMoney from '../../assets/oldmoney.jpg';
+import streetStyle from '../../assets/streetstyle.jpg';
+import elevatedUtility from '../../assets/elevate.jpg';
+import parisianScandi from '../../assets/parisianscandi.jpg';
+import minimalistScandi from '../../assets/minimalscandi.jpg';
 import goldHoops from '../../assets/goldHoops.png';
 import leatherBelt from '../../assets/leatherBelt.png';
 import shoulderBag from '../../assets/shoulderBag.png';
@@ -28,6 +33,7 @@ import whiteSneakers from '../../assets/clothes/whiteSneakers.png';
 
 import { ThemedText } from '@/components/themed-text';
 import { useUserName } from '@/hooks/use-user-name';
+import { supabase } from '@/lib/supabase';
 // import { ThemedView } from '@/components/themed-view';
 type Vibe = {
   id: string;
@@ -95,6 +101,15 @@ const vibes: Vibe[] = [
   },
 ];
 
+const maleVibes: Vibe[] = [
+  { id: 'oldmoney', label: 'Old Money', icon: 'circle' },
+  { id: 'streetstyle', label: 'Street Style', icon: 'sun.max.fill' },
+  { id: 'elevated_utility', label: 'Elevated Utility', icon: 'briefcase.fill' },
+  { id: 'parisian_scandi', label: 'Parisian', icon: 'sparkles' },
+  { id: 'minimalist_scandi', label: 'Minimalist', icon: 'moon.fill' },
+  { id: 'casual', label: 'Casual', icon: 'heart.fill' },
+];
+
 const occasions: Occasion[] = [
   {
     id: 'college',
@@ -130,6 +145,15 @@ const styleBuyLinks: Record<string, string> = {
   ethnic: 'https://linktr.ee/mandlikgauri73?utm_source=linktree_profile_share&ltsid=0cf9236c-4f05-4ba7-9637-d47a4174a1c9',
   evening: 'https://www.myntra.com/',
   feminine: 'https://www.myntra.com/',
+};
+
+const maleStyleBuyLinks: Record<string, string> = {
+  oldmoney: 'https://www.myntra.com/men-blazers',
+  streetstyle: 'https://www.myntra.com/men-streetwear',
+  elevated_utility: 'https://www.myntra.com/men-jackets',
+  parisian_scandi: 'https://www.myntra.com/men-shirts',
+  minimalist_scandi: 'https://www.myntra.com/men-tshirts',
+  casual: 'https://www.myntra.com/men-casual-wear',
 };
 
 const outfitMap: Record<string, Record<string, Outfit>> = {
@@ -392,6 +416,261 @@ const outfitMap: Record<string, Record<string, Outfit>> = {
   },
 };
 
+const maleOutfitMap: Record<string, Record<string, Outfit>> = {
+  oldmoney: {
+    college: {
+      name: 'Campus Classic',
+      description: 'A clean Oxford shirt with tailored chinos and leather sneakers.',
+      top: 'Oxford Shirt',
+      bottom: 'Tailored Chinos',
+      shoes: 'Leather Sneakers',
+      accessory: 'Leather Belt',
+    },
+    presentation: {
+      name: 'Modern Heritage',
+      description: 'A structured blazer and crisp shirt make a polished impression.',
+      top: 'Structured Blazer',
+      bottom: 'Pleated Trousers',
+      shoes: 'Leather Loafers',
+      accessory: 'Minimal Watch',
+    },
+    'casual-day': {
+      name: 'Weekend Classic',
+      description: 'A refined knit polo with relaxed chinos for an easy day.',
+      top: 'Knit Polo',
+      bottom: 'Relaxed Chinos',
+      shoes: 'Suede Sneakers',
+      accessory: 'Leather Belt',
+    },
+    dinner: {
+      name: 'Evening Heritage',
+      description: 'A dark, tailored look with understated leather accessories.',
+      top: 'Textured Shirt',
+      bottom: 'Tailored Trousers',
+      shoes: 'Leather Loafers',
+      accessory: 'Minimal Watch',
+    },
+    party: {
+      name: 'Celebration Edit',
+      description: 'A sharp shirt and tailored trousers for a dressed-up evening.',
+      top: 'Statement Shirt',
+      bottom: 'Slim Trousers',
+      shoes: 'Chelsea Boots',
+      accessory: 'Leather Belt',
+    },
+  },
+  streetstyle: {
+    college: {
+      name: 'Campus Streetwear',
+      description: 'A graphic tee, relaxed denim and clean sneakers.',
+      top: 'Graphic T-Shirt',
+      bottom: 'Relaxed Jeans',
+      shoes: 'High-Top Sneakers',
+      accessory: 'Crossbody Bag',
+    },
+    presentation: {
+      name: 'Creative Layers',
+      description: 'A sharp overshirt balances relaxed streetwear proportions.',
+      top: 'Overshirt',
+      bottom: 'Straight-Leg Trousers',
+      shoes: 'Minimal Sneakers',
+      accessory: 'Crossbody Bag',
+    },
+    'casual-day': {
+      name: 'Off-Duty Uniform',
+      description: 'An easy sweatshirt and denim combination for everyday wear.',
+      top: 'Relaxed Sweatshirt',
+      bottom: 'Straight Jeans',
+      shoes: 'Everyday Sneakers',
+      accessory: 'Cap',
+    },
+    dinner: {
+      name: 'Streetwise Evening',
+      description: 'A dark overshirt and neat denim keep the look relaxed but sharp.',
+      top: 'Dark Overshirt',
+      bottom: 'Black Jeans',
+      shoes: 'Leather Sneakers',
+      accessory: 'Crossbody Bag',
+    },
+    party: {
+      name: 'After-Hours Street',
+      description: 'A statement jacket adds edge to a clean evening base.',
+      top: 'Statement Jacket',
+      bottom: 'Dark Denim',
+      shoes: 'High-Top Sneakers',
+      accessory: 'Chain Necklace',
+    },
+  },
+  elevated_utility: {
+    college: {
+      name: 'Utility Campus',
+      description: 'A sturdy overshirt with comfortable cargos and versatile sneakers.',
+      top: 'Utility Overshirt',
+      bottom: 'Cargo Trousers',
+      shoes: 'Canvas Sneakers',
+      accessory: 'Canvas Backpack',
+    },
+    presentation: {
+      name: 'Field Notes',
+      description: 'A structured chore jacket sharpens practical, tailored separates.',
+      top: 'Chore Jacket',
+      bottom: 'Tapered Trousers',
+      shoes: 'Leather Derbies',
+      accessory: 'Leather Belt',
+    },
+    'casual-day': {
+      name: 'Everyday Utility',
+      description: 'Hard-wearing layers and relaxed cargos for a practical day.',
+      top: 'Workwear Shirt',
+      bottom: 'Relaxed Cargos',
+      shoes: 'Trail Sneakers',
+      accessory: 'Crossbody Bag',
+    },
+    dinner: {
+      name: 'Utility After Dark',
+      description: 'A dark utility jacket brings a considered edge to dinner.',
+      top: 'Dark Field Jacket',
+      bottom: 'Straight Trousers',
+      shoes: 'Leather Boots',
+      accessory: 'Minimal Watch',
+    },
+    party: {
+      name: 'Modern Workwear',
+      description: 'A clean utility layer and dark trousers create a confident look.',
+      top: 'Utility Jacket',
+      bottom: 'Dark Chinos',
+      shoes: 'Leather Sneakers',
+      accessory: 'Leather Belt',
+    },
+  },
+  parisian_scandi: {
+    college: {
+      name: 'Scandi Campus',
+      description: 'A simple knit and straight-leg trousers in a quiet palette.',
+      top: 'Fine-Gauge Sweater',
+      bottom: 'Straight Trousers',
+      shoes: 'Minimal Sneakers',
+      accessory: 'Canvas Tote',
+    },
+    presentation: {
+      name: 'Quiet Tailoring',
+      description: 'Relaxed tailoring and clean lines keep the presentation look modern.',
+      top: 'Relaxed Blazer',
+      bottom: 'Tailored Trousers',
+      shoes: 'Leather Loafers',
+      accessory: 'Minimal Watch',
+    },
+    'casual-day': {
+      name: 'Nordic Weekend',
+      description: 'A soft knit and relaxed denim make a comfortable, considered outfit.',
+      top: 'Textured Knit',
+      bottom: 'Relaxed Denim',
+      shoes: 'Suede Sneakers',
+      accessory: 'Leather Belt',
+    },
+    dinner: {
+      name: 'Parisian Dinner',
+      description: 'A refined dark knit and tailored trousers for an understated evening.',
+      top: 'Dark Knit Polo',
+      bottom: 'Tailored Trousers',
+      shoes: 'Chelsea Boots',
+      accessory: 'Minimal Watch',
+    },
+    party: {
+      name: 'Evening in the City',
+      description: 'A clean jacket and monochrome separates feel sharp after dark.',
+      top: 'Wool Jacket',
+      bottom: 'Black Trousers',
+      shoes: 'Leather Boots',
+      accessory: 'Minimal Watch',
+    },
+  },
+  minimalist_scandi: {
+    college: {
+      name: 'Minimal Campus',
+      description: 'A crisp tee, dark denim and simple sneakers keep it effortless.',
+      top: 'Heavyweight T-Shirt',
+      bottom: 'Dark Straight Jeans',
+      shoes: 'White Sneakers',
+      accessory: 'Canvas Backpack',
+    },
+    presentation: {
+      name: 'Clean Lines',
+      description: 'A minimal shirt and precise tailoring make a calm, confident look.',
+      top: 'Minimal Button-Up',
+      bottom: 'Slim Tailored Trousers',
+      shoes: 'Leather Derbies',
+      accessory: 'Minimal Watch',
+    },
+    'casual-day': {
+      name: 'Soft Minimal',
+      description: 'A relaxed neutral layer with simple everyday basics.',
+      top: 'Neutral Sweatshirt',
+      bottom: 'Straight Chinos',
+      shoes: 'Minimal Sneakers',
+      accessory: 'Leather Belt',
+    },
+    dinner: {
+      name: 'Minimal Evening',
+      description: 'A dark shirt with clean tailoring for a low-key dinner.',
+      top: 'Dark Button-Up',
+      bottom: 'Tailored Trousers',
+      shoes: 'Leather Loafers',
+      accessory: 'Minimal Watch',
+    },
+    party: {
+      name: 'Monochrome Night',
+      description: 'Monochrome layers and a sharp silhouette for the evening.',
+      top: 'Black Shirt',
+      bottom: 'Black Trousers',
+      shoes: 'Chelsea Boots',
+      accessory: 'Minimal Watch',
+    },
+  },
+  casual: {
+    college: {
+      name: 'Everyday Campus',
+      description: 'A comfortable tee and jeans with dependable sneakers.',
+      top: 'Cotton T-Shirt',
+      bottom: 'Blue Jeans',
+      shoes: 'White Sneakers',
+      accessory: 'Canvas Backpack',
+    },
+    presentation: {
+      name: 'Smart Casual',
+      description: 'A button-up shirt and chinos keep things polished and comfortable.',
+      top: 'Button-Up Shirt',
+      bottom: 'Chinos',
+      shoes: 'Loafers',
+      accessory: 'Leather Belt',
+    },
+    'casual-day': {
+      name: 'Easy Weekend',
+      description: 'A relaxed tee and denim for an uncomplicated day out.',
+      top: 'Relaxed T-Shirt',
+      bottom: 'Straight Jeans',
+      shoes: 'Everyday Sneakers',
+      accessory: 'Cap',
+    },
+    dinner: {
+      name: 'Casual Dinner',
+      description: 'A clean polo and dark trousers are an easy dinner combination.',
+      top: 'Polo Shirt',
+      bottom: 'Dark Chinos',
+      shoes: 'Leather Sneakers',
+      accessory: 'Minimal Watch',
+    },
+    party: {
+      name: 'Casual Night Out',
+      description: 'A textured shirt and dark denim for a relaxed evening.',
+      top: 'Textured Shirt',
+      bottom: 'Dark Jeans',
+      shoes: 'Suede Sneakers',
+      accessory: 'Leather Belt',
+    },
+  },
+};
+
 const wardrobeElevators = [
   {
     id: '1',
@@ -427,14 +706,76 @@ const wardrobeElevators = [
   },
 ];
 
+const maleWardrobeElevators = [
+  {
+    id: 'men-belt',
+    name: 'Classic Leather Belt',
+    category: 'ACCESSORY',
+    price: '₹899',
+    image: leatherBelt,
+    link: 'https://www.myntra.com/men-belts',
+  },
+  {
+    id: 'men-sneakers',
+    name: 'Everyday Sneakers',
+    category: 'FOOTWEAR',
+    price: 'Explore styles',
+    image: whiteSneakers,
+    link: 'https://www.myntra.com/men-casual-shoes',
+  },
+];
+
 export default function HomeScreen() {
   const userName = useUserName();
+  const [userGender, setUserGender] = useState<'male' | 'female'>('female');
 
-  const [selectedVibe, setSelectedVibe] =
-    useState('ethnic');
+  const [selectedVibe, setSelectedVibe] = useState('ethnic');
 
-  const [selectedOccasion, setSelectedOccasion] =
-    useState('presentation');
+  const [selectedOccasion, setSelectedOccasion] = useState('presentation');
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadGender = async () => {
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) {
+          throw sessionError;
+        }
+        if (!session?.user) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('user_preferences')
+          .select('gender')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (error) {
+          throw error;
+        }
+
+        if (isActive && data?.gender) {
+          const gender =
+            String(data.gender).toLowerCase().trim() === 'male'
+              ? 'male'
+              : 'female';
+          setUserGender(gender);
+          setSelectedVibe(gender === 'male' ? 'oldmoney' : 'ethnic');
+        }
+      } catch (error) {
+        console.error('Failed to load Stylist profile gender:', error);
+      }
+    };
+
+    void loadGender();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   function selectVibe(vibe: string) {
     setSelectedVibe(vibe);
@@ -453,40 +794,55 @@ export default function HomeScreen() {
     feminine: 736 / 1308,
   };
 
-  const stylePins = vibes.map((vibe) => ({
+  const activeVibes = userGender === 'male' ? maleVibes : vibes;
+  const activeOutfitMap = userGender === 'male' ? maleOutfitMap : outfitMap;
+  const activeWardrobeElevators =
+    userGender === 'male' ? maleWardrobeElevators : wardrobeElevators;
+  const maleStyleImages: Record<string, number> = {
+    oldmoney: oldMoney,
+    streetstyle: streetStyle,
+    elevated_utility: elevatedUtility,
+    parisian_scandi: parisianScandi,
+    minimalist_scandi: minimalistScandi,
+    casual,
+  };
+
+  const stylePins = activeVibes.map((vibe) => ({
     vibe,
     image:
-      {
-        effortless,
-        minimal,
-        casual,
-        ethnic,
-        evening,
-        feminine,
-      }[vibe.id] ?? ethnic,
+      userGender === 'male'
+        ? maleStyleImages[vibe.id] ?? oldMoney
+        : ({
+            effortless,
+            minimal,
+            casual,
+            ethnic,
+            evening,
+            feminine,
+          }[vibe.id] ?? ethnic),
       imageAspectRatio: styleImageRatios[vibe.id] ?? 2 / 3,
-      buyLink: styleBuyLinks[vibe.id],
+      buyLink:
+        userGender === 'male'
+          ? maleStyleBuyLinks[vibe.id]
+          : styleBuyLinks[vibe.id],
       outfit:
-        outfitMap[vibe.id]?.[selectedOccasion] ??
-        outfitMap.ethnic.presentation,
+        activeOutfitMap[vibe.id]?.[selectedOccasion] ??
+        activeOutfitMap[activeVibes[0].id].presentation,
   }));
 
-  const styleFeedColumns = [
-    [
-      { type: 'look' as const, item: stylePins[0] },
-      { type: 'product' as const, item: wardrobeElevators[0] },
-      { type: 'look' as const, item: stylePins[2] },
-      { type: 'product' as const, item: wardrobeElevators[2] },
-      { type: 'look' as const, item: stylePins[4] },
-    ],
-    [
-      { type: 'look' as const, item: stylePins[1] },
-      { type: 'product' as const, item: wardrobeElevators[1] },
-      { type: 'look' as const, item: stylePins[3] },
-      { type: 'product' as const, item: wardrobeElevators[3] },
-      { type: 'look' as const, item: stylePins[5] },
-    ],
-  ];
+  const styleFeedColumns = [0, 1].map((columnIndex) => {
+    const columnPins = stylePins.filter((_, index) => index % 2 === columnIndex);
+    const columnProducts = activeWardrobeElevators.filter(
+      (_, index) => index % 2 === columnIndex
+    );
+
+    return columnPins.flatMap((pin, index) => [
+      { type: 'look' as const, item: pin },
+      ...(columnProducts[index]
+        ? [{ type: 'product' as const, item: columnProducts[index] }]
+        : []),
+    ]);
+  });
 
   const renderStylePin = (pin: (typeof stylePins)[number]) => {
     const selected = pin.vibe.id === selectedVibe;
@@ -646,7 +1002,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.feedCount}>
               <Text style={styles.feedCountText}>
-                {vibes.length + wardrobeElevators.length} picks
+                {activeVibes.length + activeWardrobeElevators.length} picks
               </Text>
             </View>
           </View>

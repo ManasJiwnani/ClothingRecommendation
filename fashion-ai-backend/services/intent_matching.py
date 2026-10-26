@@ -109,6 +109,11 @@ def occasion_matches(requested_occasion, item_occasions):
         if not candidate:
             continue
 
+        if requested == "festive" and FESTIVE_OCCASION_TERMS.intersection(
+            candidate.split()
+        ):
+            return True
+
         if (
             requested == candidate
             or re.search(rf"(?<!\w){re.escape(requested)}(?!\w)", candidate)

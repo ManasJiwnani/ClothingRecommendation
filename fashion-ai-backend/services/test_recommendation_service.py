@@ -1,12 +1,128 @@
 import unittest
 
 from models.schemas import Intent
+from services.deafult_recom import create_default_intent
 from services.outfit_builder import build_outfits
 from services.outfit_ranker import rank_outfits
+from services.intent_matching import occasion_matches
 from services.recommendation_service import filter_clothes
 
 
 class RecommendationServiceTests(unittest.TestCase):
+    def test_festive_occasion_matches_wedding_and_diwali_tags(self):
+        self.assertTrue(occasion_matches("festive", ["wedding"]))
+        self.assertTrue(occasion_matches("festive", ["Diwali celebration"]))
+        self.assertFalse(occasion_matches("festive", ["office"]))
+
+    def test_festive_preset_ranks_wedding_and_diwali_items_first(self):
+        clothes = [
+            {"id": "office-top", "category": "top", "occasions": ["office"]},
+            {"id": "diwali-top", "category": "top", "occasions": ["diwali"]},
+            {"id": "wedding-top", "category": "top", "occasions": ["wedding"]},
+        ]
+
+        filtered_clothes = filter_clothes(
+            clothes,
+            {"occasion": "festive"},
+        )
+
+        self.assertEqual(
+            [item["id"] for item in filtered_clothes],
+            ["diwali-top", "wedding-top", "office-top"],
+        )
+
+    def test_saree_constraint_only_builds_saree_outfit(self):
+        clothes = [
+            {
+                "id": "silk-saree",
+                "category": "dress",
+                "subcategory": "saree",
+                "occasions": ["wedding", "diwali"],
+                "cultural_domain": "indian_ethnic",
+            },
+            {
+                "id": "evening-gown",
+                "category": "dress",
+                "subcategory": "gown",
+                "occasions": ["wedding"],
+            },
+        ]
+        intent = Intent.model_validate(
+            {
+                "occasion": "festive",
+                "category_preference": ["saree"],
+                "item_constraints": [
+                    {"category": "dress", "garment": "saree"},
+                ],
+                "cultural_aesthetic": "Indian Ethnic",
+                "is_strictly_traditional": True,
+            }
+        )
+
+        filtered_clothes = filter_clothes(clothes, intent)
+        recommendations = rank_outfits(
+            build_outfits(filtered_clothes),
+            intent,
+            top_k=5,
+        )
+
+        self.assertEqual([item["id"] for item in filtered_clothes], ["silk-saree"])
+        self.assertEqual(len(recommendations), 1)
+        self.assertEqual(
+            recommendations[0]["outfit"]["dress"]["id"],
+            "silk-saree",
+        )
+
+    def test_male_festive_intent_builds_kurta_and_pants_outfit(self):
+        intent = create_default_intent(
+            "festive",
+            {"temperature": 25},
+            "male",
+        )
+        clothes = [
+            {
+                "id": "festive-kurta",
+                "category": "top",
+                "subcategory": "kurta",
+                "occasions": ["wedding"],
+                "cultural_domain": "indian_ethnic",
+            },
+            {
+                "id": "festive-pants",
+                "category": "bottom",
+                "subcategory": "pants",
+                "occasions": ["festive"],
+                "cultural_domain": "indian_ethnic",
+            },
+            {
+                "id": "saree",
+                "category": "dress",
+                "subcategory": "saree",
+                "occasions": ["wedding"],
+            },
+        ]
+
+        filtered_clothes = filter_clothes(clothes, intent)
+        recommendations = rank_outfits(
+            build_outfits(filtered_clothes),
+            intent,
+            top_k=5,
+        )
+
+        self.assertEqual(
+            {item["id"] for item in filtered_clothes},
+            {"festive-kurta", "festive-pants"},
+        )
+        self.assertEqual(len(recommendations), 1)
+        self.assertEqual(
+            recommendations[0]["outfit"]["top"]["subcategory"],
+            "kurta",
+        )
+        self.assertEqual(
+            recommendations[0]["outfit"]["bottom"]["subcategory"],
+            "pants",
+        )
+
     def test_dress_request_keeps_both_outfit_types_eligible(self):
         clothes = [
             {"id": "dress-1", "category": "dress"},

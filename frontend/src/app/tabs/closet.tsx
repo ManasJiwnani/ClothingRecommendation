@@ -6,7 +6,11 @@ import {
 import { getWeather } from "../../services/weather";
 import { getCurrentCoordinates } from "../../services/location";
 import { supabase } from "../../lib/supabase";
-import {processClothingImage,getProcessedImageUrl} from "../../services/add_item";
+import {
+  processClothingImage,
+  getProcessedImageUrl,
+  type ProcessedClothingItem,
+} from "../../services/add_item";
 import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -71,6 +75,8 @@ export default function ClosetScreen() {
     useState<string | null>(null);
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [reviewItems, setReviewItems] = useState<ProcessedClothingItem[]>([]);
+  const [savingItems, setSavingItems] = useState(false);
 
   // =========================================================
   // GET CURRENT USER
@@ -389,12 +395,14 @@ export default function ClosetScreen() {
     setShowAddPiece(true);
     setImageUri(null);
     setUploadMode("single");
+    setReviewItems([]);
   }
 
   function closeAddPiece() {
     setShowAddPiece(false);
     setImageUri(null);
     setUploadMode("single");
+    setReviewItems([]);
   }
 
   // =========================================================
@@ -406,6 +414,7 @@ export default function ClosetScreen() {
   ) {
     setUploadMode(mode);
     setImageUri(null);
+    setReviewItems([]);
   }
 
   // =========================================================
@@ -435,6 +444,7 @@ export default function ClosetScreen() {
         !result.canceled &&
         result.assets?.length
       ) {
+        setReviewItems([]);
         setImageUri(
           result.assets[0].uri
         );
@@ -480,6 +490,7 @@ export default function ClosetScreen() {
         !result.canceled &&
         result.assets?.length
       ) {
+        setReviewItems([]);
         setImageUri(
           result.assets[0].uri
         );
@@ -503,6 +514,25 @@ export default function ClosetScreen() {
 
   function removePhoto() {
     setImageUri(null);
+    setReviewItems([]);
+  }
+
+  function updateReviewItem(
+    index: number,
+    field: "category" | "subcategory" | "color" | "pattern" | "material",
+    value: string
+  ) {
+    setReviewItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  }
+
+  function removeReviewItem(index: number) {
+    setReviewItems((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index)
+    );
   }
 
   // =========================================================
@@ -558,15 +588,53 @@ export default function ClosetScreen() {
         throw new Error("The AI service did not find any clothing items.");
       }
 
-      const savedItems = await Promise.all(
-        processedItems.map((item) => {
-          const imageUrl = getProcessedImageUrl(item);
-          if (!imageUrl) {
-            throw new Error(
-              "The AI service did not return a public image URL for a processed item."
-            );
-          }
-          return createClothing(userId, {
+      for (const item of processedItems) {
+        if (!getProcessedImageUrl(item)) {
+          throw new Error(
+            "The AI service did not return a public image URL for a processed item."
+          );
+        }
+      }
+
+      setReviewItems(processedItems);
+    } catch (error: unknown) {
+      console.error("IMAGE PROCESSING ERROR:", error);
+
+      Alert.alert(
+        "Processing failed",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while processing the image."
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function saveReviewedItems() {
+    if (reviewItems.length === 0 || savingItems) {
+      return;
+    }
+
+    const savedItems: ClothingItem[] = [];
+
+    try {
+      setSavingItems(true);
+      const user = await getCurrentUser();
+      if (!user) {
+        throw new Error("Sign in before adding clothing to your closet.");
+      }
+
+      for (const item of reviewItems) {
+        const imageUrl = getProcessedImageUrl(item);
+        if (!imageUrl) {
+          throw new Error(
+            "A processed clothing item is missing its image URL."
+          );
+        }
+
+        savedItems.push(
+          await createClothing(user.id, {
             image_url: imageUrl,
             category: item.category,
             subcategory: item.subcategory,
@@ -581,32 +649,41 @@ export default function ClosetScreen() {
             season: item.season,
             occasions: item.occasions,
             embedding: item.embedding,
-          });
-        })
-      );
+          })
+        );
+      }
 
       setClothes((previous) => [...savedItems, ...previous]);
       setSelectedCategory("All");
       setShowOutfits(false);
-
+      setReviewItems([]);
+      setImageUri(null);
+      setShowAddPiece(false);
       Alert.alert(
         uploadMode === "single" ? "Added to closet" : "Outfit processed",
         `${savedItems.length} clothing item${savedItems.length === 1 ? "" : "s"} saved to your closet.`
       );
-
-      setImageUri(null);
-      setShowAddPiece(false);
-    } catch (error: unknown) {
-      console.error("IMAGE PROCESSING ERROR:", error);
-
-      Alert.alert(
-        "Processing failed",
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while processing the image."
-      );
+    } catch (error) {
+      console.error("Failed to save reviewed clothing:", error);
+      if (savedItems.length > 0) {
+        setClothes((previous) => [...savedItems, ...previous]);
+        setSelectedCategory("All");
+        setShowOutfits(false);
+        setReviewItems((current) => current.slice(savedItems.length));
+        Alert.alert(
+          "Some items were saved",
+          `${savedItems.length} item${savedItems.length === 1 ? "" : "s"} saved. The remaining items are still available to review and save.`
+        );
+      } else {
+        Alert.alert(
+          "Could not save clothing",
+          error instanceof Error
+            ? error.message
+            : "The clothing details could not be saved. Please try again."
+        );
+      }
     } finally {
-      setAnalyzing(false);
+      setSavingItems(false);
     }
   }
 
@@ -1102,9 +1179,119 @@ export default function ClosetScreen() {
               )}
             </View>
 
+            {reviewItems.length > 0 && (
+              <View style={styles.reviewSection}>
+                <View style={styles.reviewHeader}>
+                  <View>
+                    <Text style={styles.reviewKicker}>AI ANALYSIS COMPLETE</Text>
+                    <Text style={styles.reviewTitle}>Review your items</Text>
+                  </View>
+                  <Text style={styles.reviewCount}>
+                    {reviewItems.length}{" "}
+                    {reviewItems.length === 1 ? "ITEM" : "ITEMS"}
+                  </Text>
+                </View>
+                <Text style={styles.reviewDescription}>
+                  Edit any details that need correcting before adding them to
+                  your wardrobe.
+                </Text>
+
+                {reviewItems.map((item, index) => (
+                  <View key={`${item.image_url}-${index}`} style={styles.reviewCard}>
+                    <View style={styles.reviewItemHeader}>
+                      <View style={styles.reviewImageWrap}>
+                        <Image
+                          source={{ uri: item.image_url }}
+                          style={styles.reviewItemImage}
+                          contentFit="contain"
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove garment ${index + 1}`}
+                          onPress={() => removeReviewItem(index)}
+                          style={styles.removeReviewItemButton}
+                        >
+                          <SymbolView
+                            name={{
+                              ios: "xmark",
+                              android: "close",
+                              web: "close",
+                            }}
+                            size={14}
+                            tintColor="#ffffff"
+                          />
+                        </Pressable>
+                      </View>
+                      <View style={styles.reviewItemHeading}>
+                        <Text style={styles.reviewItemKicker}>
+                          GARMENT {index + 1}
+                        </Text>
+                        <Text style={styles.reviewItemName}>
+                          {[item.color, item.subcategory || item.category]
+                            .filter(Boolean)
+                            .join(" ") || "Clothing item"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.reviewFields}>
+                      {(
+                        [
+                          ["category", "Category"],
+                          ["subcategory", "Sub-category"],
+                          ["color", "Color"],
+                          ["pattern", "Pattern"],
+                          ["material", "Material"],
+                        ] as const
+                      ).map(([field, label]) => (
+                        <View key={field} style={styles.reviewField}>
+                          <Text style={styles.reviewFieldLabel}>{label}</Text>
+                          <TextInput
+                            accessibilityLabel={`${label} for garment ${index + 1}`}
+                            value={item[field] ?? ""}
+                            onChangeText={(value) =>
+                              updateReviewItem(index, field, value)
+                            }
+                            placeholder={`Enter ${label.toLowerCase()}`}
+                            placeholderTextColor="#9b9892"
+                            autoCapitalize="words"
+                            style={styles.reviewInput}
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: savingItems }}
+                  disabled={savingItems}
+                  onPress={() => void saveReviewedItems()}
+                  style={[
+                    styles.analyzeButton,
+                    savingItems && styles.analyzeButtonDisabled,
+                  ]}
+                >
+                  {savingItems ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <SymbolView
+                      name="checkmark"
+                      size={18}
+                      tintColor="#ffffff"
+                    />
+                  )}
+                  <Text style={styles.analyzeText}>
+                    {savingItems ? "Saving..." : "Save to wardrobe"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
             {/* HOW TO PHOTOGRAPH */}
 
-            {!imageUri && (
+            {!imageUri && reviewItems.length === 0 && (
               <View
                 style={
                   styles.howToCard
@@ -1154,7 +1341,7 @@ export default function ClosetScreen() {
 
             {/* DETAILS */}
 
-            {imageUri && (
+            {imageUri && reviewItems.length === 0 && (
               <View
                 style={styles.details}
               >
@@ -1201,56 +1388,34 @@ export default function ClosetScreen() {
 
             {/* ANALYZE */}
 
-            <Pressable
-              onPress={
-                analyzeGarment
-              }
-              disabled={
-                !imageUri || analyzing
-              }
-              style={[
-                styles.analyzeButton,
-                (!imageUri ||
-                  analyzing) &&
-                  styles.analyzeButtonDisabled,
-              ]}
-            >
-              {analyzing ? (
-                <>
-                  <ActivityIndicator
-                    size="small"
-                    color="#ffffff"
-                  />
-
-                  <Text
-                    style={
-                      styles.analyzeText
-                    }
-                  >
-                    Analyzing...
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <SymbolView
-                    name="sparkles"
-                    size={18}
-                    tintColor="#ffffff"
-                  />
-
-                  <Text
-                    style={
-                      styles.analyzeText
-                    }
-                  >
-                    {uploadMode ===
-                    "single"
-                      ? "Analyze item"
-                      : "Analyze outfit"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
+            {reviewItems.length === 0 && (
+              <Pressable
+                onPress={analyzeGarment}
+                disabled={!imageUri || analyzing}
+                style={[
+                  styles.analyzeButton,
+                  (!imageUri || analyzing) && styles.analyzeButtonDisabled,
+                ]}
+              >
+                {analyzing ? (
+                  <>
+                    <ActivityIndicator size="small" color="#ffffff" />
+                    <Text style={styles.analyzeText}>Analyzing...</Text>
+                  </>
+                ) : (
+                  <>
+                    <SymbolView
+                      name="sparkles"
+                      size={18}
+                      tintColor="#ffffff"
+                    />
+                    <Text style={styles.analyzeText}>
+                      {uploadMode === "single" ? "Analyze item" : "Analyze outfit"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </ScrollView>
         </SafeAreaView>
       </View>
@@ -2178,6 +2343,132 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: "#747878",
+  },
+
+  reviewSection: {
+    gap: 12,
+  },
+
+  reviewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+
+  reviewKicker: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.4,
+    color: "#745a38",
+  },
+
+  reviewTitle: {
+    fontFamily: Fonts.serif,
+    fontSize: 22,
+    color: "#1b1c1a",
+    marginTop: 3,
+  },
+
+  reviewCount: {
+    color: "#747878",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1,
+    paddingBottom: 4,
+  },
+
+  reviewDescription: {
+    color: "#747878",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  reviewCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e8e3dc",
+  },
+
+  reviewItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  reviewImageWrap: {
+    width: 68,
+    height: 68,
+    position: "relative",
+  },
+
+  reviewItemImage: {
+    width: 68,
+    height: 68,
+    borderRadius: 12,
+    backgroundColor: "#f4f1ec",
+  },
+
+  removeReviewItemButton: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1b1c1a",
+  },
+
+  reviewItemHeading: {
+    flex: 1,
+    gap: 4,
+  },
+
+  reviewItemKicker: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: "#745a38",
+  },
+
+  reviewItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1b1c1a",
+  },
+
+  reviewFields: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+
+  reviewField: {
+    width: "48%",
+    minWidth: 120,
+    gap: 5,
+    flexGrow: 1,
+  },
+
+  reviewFieldLabel: {
+    color: "#747878",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+
+  reviewInput: {
+    minHeight: 42,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e4e0da",
+    backgroundColor: "#fbf9f6",
+    color: "#1b1c1a",
+    fontSize: 13,
   },
 
   details: {

@@ -4,6 +4,7 @@ import type { FashionIntent } from "./ai-stylist";
 export type RecommendationPreset =
   | "weather"
   | "dinner"
+  | "festive"
   | "meeting"
   | "presentation"
   | "college"

@@ -3,7 +3,8 @@ from models.schemas import Intent
 
 def create_default_intent(
     preset: str,
-    weather_context: dict
+    weather_context: dict,
+    gender: str = "female",
 ) -> Intent:
 
     temperature = weather_context.get(
@@ -103,17 +104,45 @@ def create_default_intent(
             )
 
     # ==================================================
-    # DINNER
+    # FESTIVE OCCASIONS
     # ==================================================
 
-    if preset == "dinner":
+    if preset == "festive":
+        if gender.casefold().strip() == "male":
+            return Intent(
+                occasion="festive",
+                style="ethnic",
+                formality=4,
+                mood="festive",
+                weather_sensitive=False,
+                category_preference=["kurta", "pants"],
+                item_constraints=[
+                    {
+                        "category": "top",
+                        "garment": "kurta",
+                    },
+                    {
+                        "category": "bottom",
+                        "garment": "trousers",
+                    },
+                ],
+            )
 
         return Intent(
-            occasion="dinner",
-            style="smart casual",
-            formality=3,
-            mood="elegant",
-            weather_sensitive=True
+            occasion="festive",
+            style="ethnic",
+            formality=4,
+            mood="festive",
+            weather_sensitive=False,
+            category_preference=["saree","kurta","suit"],
+            item_constraints=[
+                {
+                    "category": "dress",
+                    "garment": "saree",
+                }
+            ],
+            cultural_aesthetic="Indian Ethnic",
+            is_strictly_traditional=True,
         )
 
     # ==================================================
@@ -124,8 +153,8 @@ def create_default_intent(
 
         return Intent(
             occasion="work",
-            style="smart casual",
-            formality=4,
+            style=" casual",
+            formality=3,
             mood="professional",
             weather_sensitive=True
         )

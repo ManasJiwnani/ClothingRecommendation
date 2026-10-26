@@ -87,13 +87,13 @@ const presets = [
   },
 
   {
-    label: "Dinner in Brera",
+    label: "Wedding / Diwali",
     emoji: "◌",
     looks: [
       {
-        title: "Brera After Dark",
-        note: "A statement off-shoulder top paired with relaxed denim for dinner.",
-        occasion: "EVENING · DINNER",
+        title: "Festive Celebration",
+        note: "A polished, festive look for a wedding or Diwali gathering.",
+        occasion: "FESTIVE · WEDDING",
         items: {
           top: offshoulders,
           bottom: jeans,
@@ -101,9 +101,9 @@ const presets = [
         },
       },
       {
-        title: "Evening Minimal",
-        note: "A refined dark top and denim make an easy, understated dinner look.",
-        occasion: "EVENING · SMART CASUAL",
+        title: "Diwali Evening",
+        note: "A celebration-ready outfit with a festive, traditional mood.",
+        occasion: "FESTIVE · DIWALI",
         items: {
           top: shirt2,
           bottom: jeans,
@@ -171,7 +171,7 @@ const presets = [
 const occasions = ["Work", "Weekend", "Evening"];
 const recommendationPresets: RecommendationPreset[] = [
   "weather",
-  "dinner",
+  "festive",
   "meeting",
   "weekend",
 ];
@@ -803,6 +803,12 @@ export default function StylistScreen() {
         },
       }
     : staticLook;
+  const outfitImageCount = [
+    look.items.top,
+    look.items.bottom,
+    look.items.shoes,
+  ].filter(Boolean).length;
+  const hasSingleOutfitImage = outfitImageCount === 1;
 
 
   // ==========================================================
@@ -1161,7 +1167,10 @@ export default function StylistScreen() {
               {look.items.top && (
                 <Image
                   source={look.items.top}
-                  style={styles.topItem}
+                  style={[
+                    styles.topItem,
+                    hasSingleOutfitImage && styles.singleOutfitItem,
+                  ]}
                   resizeMode="contain"
                 />
               )}
@@ -1172,7 +1181,10 @@ export default function StylistScreen() {
               {look.items.bottom && (
                 <Image
                   source={look.items.bottom}
-                  style={styles.bottomItem}
+                  style={[
+                    styles.bottomItem,
+                    hasSingleOutfitImage && styles.singleOutfitItem,
+                  ]}
                   resizeMode="contain"
                 />
               )}
@@ -1183,7 +1195,10 @@ export default function StylistScreen() {
               {look.items.shoes && (
                 <Image
                   source={look.items.shoes}
-                  style={styles.shoesItem}
+                  style={[
+                    styles.shoesItem,
+                    hasSingleOutfitImage && styles.singleOutfitItem,
+                  ]}
                   resizeMode="contain"
                 />
               )}
@@ -2022,6 +2037,15 @@ const styles = StyleSheet.create({
     bottom: "2%",
     right: "6%",
     zIndex: 2,
+  },
+
+  singleOutfitItem: {
+    width: "86%",
+    height: "88%",
+    top: "6%",
+    bottom: undefined,
+    right: undefined,
+    zIndex: 4,
   },
 
   bagItem: {

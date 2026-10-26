@@ -542,6 +542,7 @@ async def daily_recommendation(
             "meeting",
             "presentation",
             "dinner",
+            "festive",
             "college",
             "weekend"
         ]
@@ -616,9 +617,17 @@ async def daily_recommendation(
         # 4. CREATE INTENT BASED ON PRESET
         # ==================================================
 
+        gender = "female"
+        if preset == "festive":
+            preferences = get_user_preferences(request.user_id) or {}
+            profile_gender = preferences.get("gender")
+            if isinstance(profile_gender, str):
+                gender = profile_gender
+
         intent = create_default_intent(
             preset,
-            weather_context
+            weather_context,
+            gender,
         )
 
         print("\n===== INTENT =====")
@@ -669,7 +678,7 @@ async def daily_recommendation(
 
             weather_compatible = True
 
-            if temperature is not None:
+            if intent.weather_sensitive and temperature is not None:
 
                 # Cold
                 if temperature < 18:

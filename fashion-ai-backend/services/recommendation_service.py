@@ -3,6 +3,7 @@ from services.intent_matching import (
     is_professional_occasion,
     get_item_constraints,
     item_matches_constraint,
+    occasion_matches,
 )
 
 
@@ -158,9 +159,7 @@ def filter_clothes(clothes, intent):
         # -------------------------
         requested_occasion = intent.get("occasion")
         if requested_occasion:
-            req_occ = str(requested_occasion).casefold()
-            occasions = item_occasions
-            if any(req_occ in occ or occ in req_occ for occ in occasions):
+            if occasion_matches(requested_occasion, item_occasions):
                 score += 35
 
         # -------------------------

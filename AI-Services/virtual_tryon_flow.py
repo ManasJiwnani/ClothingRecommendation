@@ -124,6 +124,7 @@ def _ensure_garment_cache_cleaned() -> None:
 
 def get_garment_prepared(url: str) -> bytes:
     """Return cached preprocessed garment image, computing on first call."""
+    GARMENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     _ensure_garment_cache_cleaned()
     cache_path = _get_garment_cache_path(url)
     if cache_path.exists():
@@ -145,6 +146,7 @@ def get_garment_prepared(url: str) -> bytes:
             return crop_and_prepare(image_bytes)
 
     garment_bytes = asyncio.run(_download_and_process())
+    GARMENT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(garment_bytes)
     cleanup_garment_cache()
     return garment_bytes

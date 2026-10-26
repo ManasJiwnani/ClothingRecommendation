@@ -15,7 +15,7 @@ import {
 } from "../../services/recommendation";
 import { supabase } from "../../lib/supabase";
 import { useUserName } from "@/hooks/use-user-name";
-
+import { AppSupportModal } from "../../components/AppSupportModal";
 import { Image as ExpoImage } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -30,6 +30,7 @@ import {
   Text,
   TextInput,
   View,
+  TouchableOpacity,
   type ImageSourcePropType,
 } from "react-native";
 
@@ -263,6 +264,7 @@ export default function StylistScreen() {
   const firstName = userName.trim().split(/\s+/)[0] ?? "";
 
   const [occasion, setOccasion] = useState("Work");
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   const [selectedPresetIndex, setSelectedPresetIndex] =
     useState(0);
@@ -803,12 +805,11 @@ export default function StylistScreen() {
         },
       }
     : staticLook;
-  const outfitImageCount = [
+  const mainOutfitImageCount = [
     look.items.top,
     look.items.bottom,
-    look.items.shoes,
   ].filter(Boolean).length;
-  const hasSingleOutfitImage = outfitImageCount === 1;
+  const hasSingleOutfitImage = mainOutfitImageCount === 1;
 
 
   // ==========================================================
@@ -892,38 +893,32 @@ export default function StylistScreen() {
   // UI
   // ==========================================================
 
-  return (
-
+ return (
     <ThemedView style={styles.container}>
-
       <SafeAreaView style={styles.safeArea}>
 
+        {/* ==================================================
+            1. SINGLE SCROLLVIEW CONTAINING ALL SCREEN CONTENT
+        ================================================== */}
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               HEADER
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <View>
-                <Text style={styles.kicker}>
-                  CLOSET AI
-                </Text>
-
+                <Text style={styles.kicker}>CLOSET AI</Text>
                 <Text style={styles.greeting}>
                   {userName
                     ? `Welcome back, ${firstName}.`
                     : "Dress for the day."}
                 </Text>
-
               </View>
-
 
               <View style={styles.headerActions}>
                 <Pressable
@@ -943,7 +938,6 @@ export default function StylistScreen() {
                   />
                 </Pressable>
               </View>
-
             </View>
 
             <Text style={styles.heroDescription}>
@@ -974,77 +968,45 @@ export default function StylistScreen() {
                 </Pressable>
               </View>
             )}
-
           </View>
 
-          {/* ==================================================
+          {/* --------------------------------------------------
               PRESETS
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.presetRow}
           >
-
-            {presets.map(
-              (preset, index) => (
-
-                <Pressable
-                  key={preset.label}
-
-                  onPress={() => {
-
-                    setSelectedPresetIndex(
-                      index
-                    );
-
-                    setLookIndex(0);
-
-                    setIsWorn(false);
-
-                  }}
-
+            {presets.map((preset, index) => (
+              <Pressable
+                key={preset.label}
+                onPress={() => {
+                  setSelectedPresetIndex(index);
+                  setLookIndex(0);
+                  setIsWorn(false);
+                }}
+                style={[
+                  styles.preset,
+                  index === selectedPresetIndex && styles.presetSelected,
+                ]}
+              >
+                <ThemedText style={styles.presetEmoji}>{preset.emoji}</ThemedText>
+                <ThemedText
                   style={[
-                    styles.preset,
-
-                    index ===
-                      selectedPresetIndex &&
-                      styles.presetSelected,
+                    styles.presetText,
+                    index === selectedPresetIndex && styles.presetTextSelected,
                   ]}
                 >
-
-                  <ThemedText
-                    style={styles.presetEmoji}
-                  >
-                    {preset.emoji}
-                  </ThemedText>
-
-
-                  <ThemedText
-                    style={[
-                      styles.presetText,
-
-                      index ===
-                        selectedPresetIndex &&
-                        styles.presetTextSelected,
-                    ]}
-                  >
-                    {preset.label}
-                  </ThemedText>
-
-                </Pressable>
-
-              )
-            )}
-
+                  {preset.label}
+                </ThemedText>
+              </Pressable>
+            ))}
           </ScrollView>
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               OUTFIT CARD
-          ================================================== */}
-
+          -------------------------------------------------- */}
           {dailyRecommendationLoading ? (
             <View style={styles.dailyRecommendationStatus}>
               <ActivityIndicator size="small" color="#745a38" />
@@ -1069,244 +1031,155 @@ export default function StylistScreen() {
               </Pressable>
             </View>
           ) : dailyRecommendation && (
-          <View style={styles.lookCard}>
+            <View style={styles.lookCard}>
 
+              {/* CARD HEADER */}
+              <View style={styles.outfitCardHeader}>
+                <View style={styles.outfitCardTitle}>
+                  <ThemedText style={styles.lookKicker}>
+                    CURATED RECOMMENDATION
+                  </ThemedText>
+                  <ThemedText style={styles.lookTitle}>
+                    {look.title}
+                  </ThemedText>
+                </View>
 
-            {/* CARD HEADER */}
-
-            <View style={styles.outfitCardHeader}>
-
-              <View style={styles.outfitCardTitle}>
-
-                <ThemedText
-                  style={styles.lookKicker}
-                >
-                  CURATED RECOMMENDATION
-                </ThemedText>
-
-
-                <ThemedText
-                  style={styles.lookTitle}
-                >
-                  {look.title}
-                </ThemedText>
-
-              </View>
-
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isSaved ? "Remove saved outfit" : "Save outfit"}
-                accessibilityState={{
-                  checked: isSaved,
-                  disabled: isSavingOutfit,
-                }}
-                disabled={isSavingOutfit}
-                onPress={() => void toggleSaveOutfit()}
-                style={[
-                  styles.saveButton,
-                  isSavingOutfit && styles.saveButtonDisabled,
-                ]}
-              >
-
-                <SymbolView
-                  name={{
-                    ios: isSavingOutfit
-                      ? "hourglass"
-                      : isSaved
-                      ? "bookmark.fill"
-                      : "bookmark",
-
-                    android: isSavingOutfit
-                      ? "hourglass_empty"
-                      : isSaved
-                      ? "bookmark"
-                      : "bookmark_border",
-
-                    web: isSavingOutfit
-                      ? "hourglass_empty"
-                      : isSaved
-                      ? "bookmark"
-                      : "bookmark_border",
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isSaved ? "Remove saved outfit" : "Save outfit"}
+                  accessibilityState={{
+                    checked: isSaved,
+                    disabled: isSavingOutfit,
                   }}
-
-                  size={19}
-
-                  tintColor="#745a38"
-                />
-
-              </Pressable>
-
-            </View>
-            {saveOutfitError && (
-              <Text style={styles.saveOutfitError} accessibilityRole="alert">
-                {saveOutfitError}
-              </Text>
-            )}
-
-            {/* ==================================================
-                OUTFIT CANVAS
-            ================================================== */}
-
-            <View style={styles.outfitCanvas}>
-
-
-              <View style={styles.canvasLabel}>
-
-                <ThemedText
-                  style={styles.canvasLabelText}
+                  disabled={isSavingOutfit}
+                  onPress={() => void toggleSaveOutfit()}
+                  style={[
+                    styles.saveButton,
+                    isSavingOutfit && styles.saveButtonDisabled,
+                  ]}
                 >
-                  YOUR LOOK
-                </ThemedText>
-
+                  <SymbolView
+                    name={{
+                      ios: isSavingOutfit
+                        ? "hourglass"
+                        : isSaved
+                        ? "bookmark.fill"
+                        : "bookmark",
+                      android: isSavingOutfit
+                        ? "hourglass_empty"
+                        : isSaved
+                        ? "bookmark"
+                        : "bookmark_border",
+                      web: isSavingOutfit
+                        ? "hourglass_empty"
+                        : isSaved
+                        ? "bookmark"
+                        : "bookmark_border",
+                    }}
+                    size={19}
+                    tintColor="#745a38"
+                  />
+                </Pressable>
               </View>
 
-
-              {/* TOP */}
-
-              {look.items.top && (
-                <Image
-                  source={look.items.top}
-                  style={[
-                    styles.topItem,
-                    hasSingleOutfitImage && styles.singleOutfitItem,
-                  ]}
-                  resizeMode="contain"
-                />
-              )}
-
-
-              {/* BOTTOM */}
-
-              {look.items.bottom && (
-                <Image
-                  source={look.items.bottom}
-                  style={[
-                    styles.bottomItem,
-                    hasSingleOutfitImage && styles.singleOutfitItem,
-                  ]}
-                  resizeMode="contain"
-                />
-              )}
-
-
-              {/* SHOES */}
-
-              {look.items.shoes && (
-                <Image
-                  source={look.items.shoes}
-                  style={[
-                    styles.shoesItem,
-                    hasSingleOutfitImage && styles.singleOutfitItem,
-                  ]}
-                  resizeMode="contain"
-                />
-              )}
-
-            </View>
-
-
-            {/* ==================================================
-                OUTFIT INFORMATION
-            ================================================== */}
-
-            <View style={styles.outfitInfo}>
-
-              <View style={styles.outfitInfoLeft}>
-
-                <ThemedText
-                  style={styles.outfitOccasion}
-                >
-                  {look.occasion}
-                </ThemedText>
-
-
-                <ThemedText
-                  style={styles.outfitDescription}
-                >
-                  {look.note}
-                </ThemedText>
-
-              </View>
-
-              {dailyRecommendation.weather_error && (
-                <Text style={styles.dailyWeatherNotice} selectable>
-                  {dailyRecommendation.weather_error}
+              {saveOutfitError && (
+                <Text style={styles.saveOutfitError} accessibilityRole="alert">
+                  {saveOutfitError}
                 </Text>
               )}
 
+              {/* OUTFIT CANVAS */}
+              <View style={styles.outfitCanvas}>
+                <View style={styles.canvasLabel}>
+                  <ThemedText style={styles.canvasLabelText}>
+                    YOUR LOOK
+                  </ThemedText>
+                </View>
 
-              {/* DYNAMIC WEATHER BADGE */}
+                {look.items.top && (
+                  <Image
+                    source={look.items.top}
+                    style={[
+                      styles.topItem,
+                      hasSingleOutfitImage && styles.singleOutfitItem,
+                    ]}
+                    resizeMode="contain"
+                  />
+                )}
 
-              <View style={styles.weatherBadge}>
+                {look.items.bottom && (
+                  <Image
+                    source={look.items.bottom}
+                    style={[
+                      styles.bottomItem,
+                      hasSingleOutfitImage && styles.singleOutfitItem,
+                    ]}
+                    resizeMode="contain"
+                  />
+                )}
 
-                <ThemedText
-                  style={styles.weatherBadgeTemp}
-                >
-
-                  {typeof dailyRecommendation.weather?.temperature === "number"
-                    ? `${Math.round(
-                        dailyRecommendation.weather.temperature
-                      )}°`
-                    : typeof temperature === "number"
-                      ? `${Math.round(temperature)}°`
-                      : "--"}
-
-                </ThemedText>
-
-
-                <ThemedText
-                  style={styles.weatherBadgeText}
-                >
-                  TODAY
-                </ThemedText>
-
+                {look.items.shoes && (
+                  <Image
+                    source={look.items.shoes}
+                    style={styles.shoesItem}
+                    resizeMode="contain"
+                  />
+                )}
               </View>
 
-            </View>
+              {/* OUTFIT INFORMATION */}
+              <View style={styles.outfitInfo}>
+                <View style={styles.outfitInfoLeft}>
+                  <ThemedText style={styles.outfitOccasion}>
+                    {look.occasion}
+                  </ThemedText>
+                  <ThemedText style={styles.outfitDescription}>
+                    {look.note}
+                  </ThemedText>
+                </View>
 
+                {dailyRecommendation.weather_error && (
+                  <Text style={styles.dailyWeatherNotice} selectable>
+                    {dailyRecommendation.weather_error}
+                  </Text>
+                )}
 
-            {/* ==================================================
-                ACTIONS
-            ================================================== */}
+                <View style={styles.weatherBadge}>
+                  <ThemedText style={styles.weatherBadgeTemp}>
+                    {typeof dailyRecommendation.weather?.temperature === "number"
+                      ? `${Math.round(dailyRecommendation.weather.temperature)}°`
+                      : typeof temperature === "number"
+                      ? `${Math.round(temperature)}°`
+                      : "--"}
+                  </ThemedText>
+                  <ThemedText style={styles.weatherBadgeText}>
+                    TODAY
+                  </ThemedText>
+                </View>
+              </View>
 
-            <View style={styles.cardActions}>
-
-
-              {/* SHARE */}
-
-              <Pressable
-                onPress={shareLook}
-                style={
-                  styles.cardActionSecondary
-                }
-              >
-
-                <SymbolView
-                  name={{
-                    ios: "square.and.arrow.up",
-                    android: "share",
-                    web: "share",
-                  }}
-
-                  size={20}
-
-                  tintColor="#745a38"
-                />
-
-                <ThemedText
-                  style={styles.cardActionText}
+              {/* ACTIONS */}
+              <View style={styles.cardActions}>
+                <Pressable
+                  onPress={shareLook}
+                  style={styles.cardActionSecondary}
                 >
-                  SHARE
-                </ThemedText>
+                  <SymbolView
+                    name={{
+                      ios: "square.and.arrow.up",
+                      android: "share",
+                      web: "share",
+                    }}
+                    size={20}
+                    tintColor="#745a38"
+                  />
+                  <ThemedText style={styles.cardActionText}>
+                    SHARE
+                  </ThemedText>
+                </Pressable>
 
-              </Pressable>
-
-
-              {/* TRY ON */}
-
-              <Pressable
-                onPress={() => {
+                <Pressable
+                  onPress={() => {
                     router.push({
                       pathname: "/virtualtry_on" as any,
                       params: {
@@ -1317,104 +1190,66 @@ export default function StylistScreen() {
                       },
                     });
                   }}
-
-                style={
-                  styles.cardActionPrimary
-                }
-              >
-
-                <SymbolView
-                  name={{
-                    ios: "camera.viewfinder",
-                    android: "camera",
-                    web: "camera",
-                  }}
-
-                  size={18}
-
-                  tintColor="#ffddb4"
-                />
-
-                <ThemedText
-                  style={
-                    styles.cardActionPrimaryText
-                  }
+                  style={styles.cardActionPrimary}
                 >
-                  TRY ON
-                </ThemedText>
+                  <SymbolView
+                    name={{
+                      ios: "camera.viewfinder",
+                      android: "camera",
+                      web: "camera",
+                    }}
+                    size={18}
+                    tintColor="#ffddb4"
+                  />
+                  <ThemedText style={styles.cardActionPrimaryText}>
+                    TRY ON
+                  </ThemedText>
+                </Pressable>
 
-              </Pressable>
-
-
-              {/* SHUFFLE */}
-
-              <Pressable
-                onPress={shuffleLook}
-                style={
-                  styles.cardActionSecondary
-                }
-              >
-
-                <SymbolView
-                  name={{
-                    ios: "shuffle",
-                    android: "shuffle",
-                    web: "shuffle",
-                  }}
-
-                  size={20}
-
-                  tintColor="#745a38"
-                />
-
-                <ThemedText
-                  style={styles.cardActionText}
+                <Pressable
+                  onPress={shuffleLook}
+                  style={styles.cardActionSecondary}
                 >
-                  SHUFFLE
-                </ThemedText>
-
-              </Pressable>
-
+                  <SymbolView
+                    name={{
+                      ios: "shuffle",
+                      android: "shuffle",
+                      web: "shuffle",
+                    }}
+                    size={20}
+                    tintColor="#745a38"
+                  />
+                  <ThemedText style={styles.cardActionText}>
+                    SHUFFLE
+                  </ThemedText>
+                </Pressable>
+              </View>
             </View>
-
-          </View>
           )}
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               PROMPT
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <View style={styles.promptBox}>
-
             <SymbolView
               name={{
                 ios: "wand.and.stars",
                 android: "auto_awesome",
                 web: "auto_awesome",
               }}
-
               size={18}
-
               tintColor="#745a38"
             />
-
 
             <TextInput
               value={prompt}
               onChangeText={setPrompt}
-
-              placeholder={
-                "Ask Elish what to wear..."
-              }
-
+              placeholder="Ask Elish what to wear..."
               placeholderTextColor="#747878"
-
               style={styles.promptInput}
               returnKeyType="send"
               onSubmitEditing={() => void submitPrompt()}
             />
-
 
             <Pressable
               accessibilityLabel="Send to Elise"
@@ -1440,9 +1275,7 @@ export default function StylistScreen() {
                   tintColor="#ffddb4"
                 />
               )}
-
             </Pressable>
-
           </View>
 
           {queryRecommendationError && (
@@ -1453,13 +1286,12 @@ export default function StylistScreen() {
             </View>
           )}
 
+          {/* QUERY RESULTS */}
           {submittedQuery && !queryRecommendationLoading && (
             <View style={styles.queryResults}>
               <View style={styles.queryResultsHeader}>
                 <View>
-                  <Text style={styles.sectionKicker}>
-                    YOUR CLOSET, STYLED
-                  </Text>
+                  <Text style={styles.sectionKicker}>YOUR CLOSET, STYLED</Text>
                   <Text style={styles.queryResultsTitle}>
                     Looks for “{submittedQuery}”
                   </Text>
@@ -1483,12 +1315,8 @@ export default function StylistScreen() {
                     { label: "SHOES", item: outfit.footwear },
                     { label: "ACCESSORY", item: outfit.accessory },
                   ].filter(
-                    (
-                      piece
-                    ): piece is {
-                      label: string;
-                      item: Record<string, unknown>;
-                    } => piece.item !== undefined
+                    (piece): piece is { label: string; item: Record<string, unknown> } =>
+                      piece.item !== undefined
                   );
 
                   return (
@@ -1560,152 +1388,136 @@ export default function StylistScreen() {
             </View>
           )}
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               DYNAMIC WEATHER CARD
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <View style={styles.weatherCard}>
-
-
-            {/* WEATHER ICON */}
-
             <View style={styles.weatherIcon}>
-
               <SymbolView
                 name={getWeatherIcon()}
                 size={23}
                 tintColor="#745a38"
               />
-
             </View>
-
-
-            {/* WEATHER CONTENT */}
 
             <View style={styles.weatherContent}>
-
-              <Text
-                style={styles.weatherCardKicker}
-              >
-                FOR TODAY
-              </Text>
-
-
-              <Text
-                style={styles.weatherCardTitle}
-              >
-
+              <Text style={styles.weatherCardKicker}>FOR TODAY</Text>
+              <Text style={styles.weatherCardTitle}>
                 {weatherLoading
-
                   ? "Checking weather..."
-
-                  : `${Math.round(
-                      temperature
-                    )}°C · ${getWeatherCondition()}`}
-
+                  : `${Math.round(temperature)}°C · ${getWeatherCondition()}`}
               </Text>
-
-
-              <Text
-                style={styles.weatherCardText}
-              >
+              <Text style={styles.weatherCardText}>
                 {getWeatherDescription()}
               </Text>
-
             </View>
-
 
             <SymbolView
               name="chevron.right"
               size={18}
               tintColor="#9b9892"
             />
-
           </View>
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               QUICK ACCESS
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <View style={styles.section}>
-
-            <Text style={styles.sectionKicker}>
-              QUICK ACCESS
-            </Text>
-
-
+            <Text style={styles.sectionKicker}>QUICK ACCESS</Text>
             <Pressable
-              onPress={() =>
-                router.push("/saved" as any)
-              }
+              onPress={() => router.push("/saved" as any)}
               style={styles.quickCard}
             >
-
               <View style={styles.quickIcon}>
-
                 <SymbolView
                   name="bookmark.fill"
                   size={19}
                   tintColor="#745a38"
                 />
-
               </View>
-
 
               <View style={styles.quickText}>
-
-                <Text style={styles.quickTitle}>
-                  Saved Outfits
-                </Text>
-
-
-                <Text
-                  style={
-                    styles.quickDescription
-                  }
-                >
+                <Text style={styles.quickTitle}>Saved Outfits</Text>
+                <Text style={styles.quickDescription}>
                   See your saved recommendations
                 </Text>
-
               </View>
-
 
               <SymbolView
                 name="chevron.right"
                 size={16}
                 tintColor="#9b9892"
               />
-
             </Pressable>
-
           </View>
 
-
-          {/* ==================================================
+          {/* --------------------------------------------------
               FOOTER
-          ================================================== */}
-
+          -------------------------------------------------- */}
           <View style={styles.colophon}>
-
-            <ThemedText
-              style={styles.colophonText}
-            >
+            <ThemedText style={styles.colophonText}>
               CLOSET AI · EDITED WITH INTENTION
             </ThemedText>
-
           </View>
 
         </ScrollView>
 
-      </SafeAreaView>
+        {/* ==================================================
+            2. FLOATING ACTION BUTTON (OUTSIDE ScrollView)
+        ================================================== */}
+        <TouchableOpacity
+          style={styles.floatingHelpButton}
+          onPress={() => setShowSupportModal(true)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Get App Help"
+        >
+          <SymbolView
+            name={{
+              ios: "bubble.left.and.bubble.right.fill",
+              android: "forum",
+              web: "forum",
+            }}
+            size={24}
+            tintColor="#FFFFFF"
+          />
+        </TouchableOpacity>
 
+        {/* ==================================================
+            3. MODAL (OUTSIDE ScrollView)
+        ================================================== */}
+        <AppSupportModal
+          visible={showSupportModal}
+          onClose={() => setShowSupportModal(false)}
+        />
+
+      </SafeAreaView>
+      <TouchableOpacity
+        style={styles.floatingHelpButton}
+        onPress={() => setShowSupportModal(true)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Get App Help"
+      >
+        <SymbolView
+          name={{
+            ios: "bubble.left.and.bubble.right.fill",
+            android: "forum",
+            web: "forum",
+          }}
+          size={24}
+          tintColor="#FFFFFF"
+        />
+      </TouchableOpacity>
+
+      <AppSupportModal
+        visible={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
     </ThemedView>
   );
+   
 }
-
-
 // ============================================================
 // STYLES
 // ============================================================
@@ -1719,6 +1531,7 @@ const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
+    position:"relative",
   },
 
   content: {
@@ -2040,9 +1853,11 @@ const styles = StyleSheet.create({
   },
 
   singleOutfitItem: {
+    position: "absolute",
     width: "86%",
-    height: "88%",
-    top: "6%",
+    height: "94%",
+    top: "3%",
+    left: "7%",
     bottom: undefined,
     right: undefined,
     zIndex: 4,
@@ -2365,4 +2180,36 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  contentContainer: {
+    padding: 16,
+  },
+ 
+  title: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#111",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+  },
+  // Floating Action Button styling
+  floatingHelpButton: {
+    position: "absolute",
+    bottom: BottomTabInset ? BottomTabInset + 20 : 94,
+    right: 20,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "#867038",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8, // Elevation for Android shadow
+    zIndex: 999,
+  },
 });

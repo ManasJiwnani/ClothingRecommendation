@@ -26,6 +26,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from workflows.app_support_flow import AppSupportGraphFlow
 
 
 from pydantic import BaseModel, Field
@@ -462,7 +463,7 @@ Return ONLY valid JSON matching this exact structure:
 
 {
     "category": "top | bottom | dress | footwear | outerwear | accessory",
-    "subcategory": "specific garment type (e.g., choli, blouse, crop top, lehenga skirt, ghagra, flared skirt, trousers, jeans, kurta, saree, jacket)",
+    "subcategory": "specific garment type (e.g., choli, blouse, crop top, lehenga skirt, ghagra, flared skirt, trousers, jeans, kurta, saree, jacket,dupatta,scarf)",
     "cultural_domain": "indian_ethnic | western | indo_western | fusion",
     "color": "primary dominant color",
     "secondary_colors": ["accent color 1", "accent color 2"],
@@ -571,7 +572,6 @@ def clean_json_response(text: str) -> str:
     elif text.startswith("```"):
 
         text = text[3:]
-
 
 
     if text.endswith("```"):
@@ -4184,6 +4184,19 @@ async def startup_event():
 
     print()
 
+    app_support_flow = AppSupportGraphFlow()
+
+    class AppSupportRequest(BaseModel):
+        query: str
+
+    class AppSupportResponse(BaseModel):
+        answer: str
+
+    @app.post("/app-help", response_model=AppSupportResponse)
+    def handle_app_support(req: AppSupportRequest):
+        """Answers user questions regarding how to use the app and its features."""
+        state = app_support_flow.graph.invoke({"query": req.query})
+        return AppSupportResponse(answer=state["answer"])
 
 
 

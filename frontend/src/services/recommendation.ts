@@ -66,8 +66,9 @@ export async function getRecommendations(
   userId: string,
   queryEmbedding: number[],
   intent: FashionIntent,
-  latitude: number,
-  longitude: number
+  latitude?: number | null,
+  longitude?: number | null,
+  topK = 5
 ) {
   return apiFetch<RecommendationResponse>("/recommend", {
     method: "POST",
@@ -80,10 +81,10 @@ export async function getRecommendations(
         color_preference: intent.color_preference ?? [],
         excluded_items: intent.excluded_items ?? [],
       },
-      latitude,
-      longitude,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
       retrieval_limit: 20,
-      top_k: 5,
+      top_k: topK,
     }),
   });
 }

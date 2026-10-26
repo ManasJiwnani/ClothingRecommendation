@@ -336,8 +336,7 @@ export default function ProfileScreen() {
 
           <View style={styles.header}>
             <View style={styles.headerTop}>
-
-              <View>
+              <View style={styles.headerCopy}>
                 <ThemedText
                   style={styles.styleSense}
                 >
@@ -351,6 +350,23 @@ export default function ProfileScreen() {
                 </ThemedText>
               </View>
 
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back to Home"
+                onPress={() => router.replace('/tabs')}
+                style={styles.backButton}
+                hitSlop={8}
+              >
+                <SymbolView
+                  name={{
+                    ios: 'arrow.left',
+                    android: 'arrow_back',
+                    web: 'arrow_back',
+                  }}
+                  size={20}
+                  tintColor="#745a38"
+                />
+              </Pressable>
             </View>
 
             <ThemedText style={styles.subtitle}>
@@ -1130,8 +1146,21 @@ const styles = StyleSheet.create({
 
   headerTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
+  },
+
+  headerCopy: {
+    flex: 1,
+  },
+
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#f0eeea',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   styleSense: {

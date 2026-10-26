@@ -114,7 +114,6 @@ def score_item_relevance(item, intent):
     if occasion_matches(requested_occasion, item.get("occasions")):
         score += 20
 
-
     # Style requested by user
     requested_style = intent.get("style")
 
@@ -162,11 +161,69 @@ def score_item_relevance(item, intent):
 
             score -= 5
 
+    # Cultural/traditional intent boost
+    requested_aesthetic = str(intent.get("cultural_aesthetic") or "").casefold()
+    requested_occasion_text = str(requested_occasion or "").casefold()
+    is_traditional_context = (
+        bool(intent.get("is_strictly_traditional"))
+        or "traditional" in requested_aesthetic
+        or "indian ethnic" in requested_aesthetic
+        or any(
+            keyword in requested_occasion_text
+            for keyword in (
+                "navratri",
+                "garba",
+                "dandiya",
+                "diwali",
+                "festive",
+                "wedding",
+                "sangeet",
+                "traditional",
+            )
+        )
+    )
+
+    if is_traditional_context:
+        item_descriptor = " ".join(
+            str(item.get(key) or "")
+            for key in (
+                "category",
+                "subcategory",
+                "name",
+                "style",
+                "clothing_type",
+                "cultural_domain",
+                "cultural_aesthetic",
+            )
+        ).casefold()
+        traditional_terms = (
+            "lehenga",
+            "ghagra",
+            "choli",
+            "kurta",
+            "saree",
+            "sari",
+            "anarkali",
+            "ethnic",
+            "traditional",
+            "festive",
+            "navratri",
+            "garba",
+            "dandiya",
+            "wedding",
+            "silk",
+            "embroidered",
+            "palazzo",
+        )
+
+        if any(term in item_descriptor for term in traditional_terms):
+            score += 30
+        else:
+            score -= 25
 
     # Semantic similarity
     similarity = float(item.get("similarity") or 0)
     score += similarity * 10
-
 
     return score
 

@@ -150,11 +150,10 @@ def create_default_intent(
     # ==================================================
 
     if preset == "meeting":
-
         return Intent(
-            occasion="work",
-            style=" casual",
-            formality=3,
+            occasion="office",
+            style="casual",
+            formality=2,
             mood="professional",
             weather_sensitive=True
         )

@@ -13,7 +13,7 @@ class DialogFunc:
 
     @staticmethod
     def get_func6_luna() -> str:
-        return os.getenv("VISION_MODEL", "gpt-4o")
+        return os.getenv("VISION_MODEL", "gpt-6-luna")
 
     @staticmethod
     def get_func_image_25_flare() -> str:

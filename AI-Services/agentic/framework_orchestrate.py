@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional
 class AgentOrchestrator:
     def __init__(
         self,
-        dailog_func: Optional[Callable] = None,
+        dialog_func: Optional[Callable] = None,
         format_func: Optional[Callable] = None,
         dialog_max_tokens: int = 1024,
         dialog_temperature: float = 0,
@@ -13,7 +13,7 @@ class AgentOrchestrator:
         gpt_func: Optional[Callable] = None,
         image_func: Optional[Callable] = None,
     ):
-        self.dialog_func = dailog_func
+        self.dialog_func = dialog_func
         self.format_func = format_func
         self.max_tokens = dialog_max_tokens
         self.temperature = dialog_temperature
@@ -29,7 +29,7 @@ class AgentOrchestrator:
     ) -> Dict[str, Any]:
         OpenAI = importlib.import_module("openai").OpenAI
         client = OpenAI(api_key=gpt_token)
-        model = self.gpt_func() if callable(self.gpt_func) else "gpt-4o"
+        model = self.gpt_func() if callable(self.gpt_func) else "gpt-6-luna"
         
         # Prepare prompt payload using the agent's prompt_func
         payload = {}
@@ -52,8 +52,8 @@ class AgentOrchestrator:
         kwargs = {
             "model": model,
             "messages": [{"role": "user", "content": content}],
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
+            "max_completion_tokens": self.max_tokens,
+            # "temperature": self.temperature,
         }
         
         if payload.get("response_format") == "json_object":

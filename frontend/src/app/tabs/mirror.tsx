@@ -30,6 +30,10 @@ import { SymbolView } from 'expo-symbols';
 import { aiApiFetch } from '../../lib/api';
 import { useUserName } from '@/hooks/use-user-name';
 import { Fonts, Spacing } from '@/constants/theme';
+import {
+  getTryOnFallbackImage,
+  TRY_ON_FALLBACK_DELAY_MS,
+} from '../../services/try-on-fallback';
 
 // =========================================================
 // ASSETS
@@ -159,6 +163,7 @@ export default function MirrorScreen() {
 
 const [userGender, setUserGender] = useState<'male' | 'female'>('female');
 const [userId, setUserId] = useState<string | null>(null);
+const [currentIntent, setCurrentIntent] = useState('');
 const [likedOutfits, setLikedOutfits] = useState<Outfit[]>([]);
 
 useEffect(() => {
@@ -228,6 +233,10 @@ useEffect(() => {
   };
 }, []);
   const currentModelImage = userGender === 'male' ? MAN_IMAGE : WOMAN_IMAGE;
+  const currentIntentFallbackImage =
+    userGender === 'female'
+      ? getTryOnFallbackImage(currentIntent)
+      : null;
 
   // =======================================================
   // FLOW STATE
@@ -302,6 +311,9 @@ useEffect(() => {
   const [tryOnResult, setTryOnResult] =
     useState<string | null>(null);
 
+  const [showTryOnFallback, setShowTryOnFallback] =
+    useState(false);
+
   const [tryOnError, setTryOnError] =
     useState<string | null>(null);
 
@@ -329,7 +341,8 @@ useEffect(() => {
   const generateVirtualTryOn = async (
     top: ClothingItem | null,
     bottom: ClothingItem | null,
-    footwear: ClothingItem | null
+    footwear: ClothingItem | null,
+    layer: ClothingItem | null = null
   ) => {
     const requestId = ++tryOnRequestId.current;
     const imageUrl = (item: ClothingItem | null) =>
@@ -341,17 +354,25 @@ useEffect(() => {
     const topUrl = imageUrl(top);
     const bottomUrl = imageUrl(bottom);
     const footwearUrl = imageUrl(footwear);
+    const layerUrl = imageUrl(layer);
 
-    if (!topUrl && !bottomUrl && !footwearUrl) {
+    if (!topUrl && !bottomUrl && !footwearUrl && !layerUrl) {
       setTryOnResult(null);
       setTryOnError('This outfit has no available clothing images to try on.');
+      setShowTryOnFallback(true);
       setIsTryingOn(false);
       return;
     }
 
     setIsTryingOn(true);
     setTryOnResult(null);
+    setShowTryOnFallback(false);
     setTryOnError(null);
+    const fallbackTimer = setTimeout(() => {
+      if (requestId === tryOnRequestId.current) {
+        setShowTryOnFallback(true);
+      }
+    }, TRY_ON_FALLBACK_DELAY_MS);
 
     try {
       const response = await aiApiFetch<{ image_url: string }>(
@@ -364,6 +385,7 @@ useEffect(() => {
             top: topUrl,
             bottom: bottomUrl,
             shoes: footwearUrl,
+            layer: layerUrl,
           }),
         }
       );
@@ -377,18 +399,21 @@ useEffect(() => {
       }
 
       setTryOnResult(response.image_url);
+      setShowTryOnFallback(false);
     } catch (error) {
       if (requestId !== tryOnRequestId.current) {
         return;
       }
 
       console.error('Failed to create virtual try-on:', error);
+      setShowTryOnFallback(true);
       setTryOnError(
         error instanceof Error
           ? error.message
           : 'Could not create the virtual try-on. Please try again.'
       );
     } finally {
+      clearTimeout(fallbackTimer);
       if (requestId === tryOnRequestId.current) {
         setIsTryingOn(false);
       }
@@ -431,9 +456,11 @@ useEffect(() => {
     setShowTryOn(false);
 
     setTryOnResult(null);
+    setShowTryOnFallback(false);
     setTryOnError(null);
 
     setIsTryingOn(false);
+    setCurrentIntent(trimmedCommand);
 
     setIsGenerating(true);
 
@@ -671,6 +698,14 @@ useEffect(() => {
     );
 
     setShowLayerOptions(false);
+    if (showTryOn) {
+      void generateVirtualTryOn(
+        selectedTop,
+        selectedBottom,
+        selectedOutfit?.footwear || null,
+        item
+      );
+    }
   };
 
   const loadSwapOptions = async (category: 'top' | 'bottom') => {
@@ -862,12 +897,11 @@ useEffect(() => {
     setShowLayerOptions(false);
 
     setTryOnResult(null);
+    setShowTryOnFallback(false);
     setTryOnError(null);
 
     setIsTryingOn(false);
-
     setShowTryOn(false);
-
     setShowLikedLooks(false);
   };
 
@@ -908,7 +942,9 @@ useEffect(() => {
     setIsTryingOn(false);
 
     setTryOnResult(null);
+    setShowTryOnFallback(false);
     setTryOnError(null);
+    setCurrentIntent('');
   };
 
   // =======================================================
@@ -1367,15 +1403,25 @@ useEffect(() => {
                     tintColor="#745a38"
                   />
                   <Text style={styles.tryOnModelBadgeText}>
-                    {tryOnResult ? 'YOUR LOOK' : 'MODEL PREVIEW'}
+                    {tryOnResult
+                      ? 'YOUR LOOK'
+                      : showTryOnFallback && currentIntentFallbackImage
+                        ? 'STYLE PREVIEW'
+                        : 'MODEL PREVIEW'}
                   </Text>
                 </View>
                 <Image
-                  source={tryOnResult ? { uri: tryOnResult } : currentModelImage}
+                  source={
+                    tryOnResult
+                      ? { uri: tryOnResult }
+                      : showTryOnFallback && currentIntentFallbackImage
+                        ? currentIntentFallbackImage
+                        : currentModelImage
+                  }
                   style={styles.tryOnModelImage}
                   resizeMode="contain"
                 />
-                {isTryingOn && (
+                {isTryingOn && !showTryOnFallback && (
                   <View style={styles.tryOnLoadingOverlay}>
                     <ActivityIndicator size="large" color="#ffffff" />
                     <Text style={styles.tryOnLoadingText}>
@@ -1604,8 +1650,11 @@ useEffect(() => {
 
             <Pressable
               onPress={() =>
-                handleTryOn(
-                  selectedOutfit
+                void generateVirtualTryOn(
+                  selectedTop,
+                  selectedBottom,
+                  selectedOutfit.footwear || null,
+                  additionalLayer
                 )
               }
               disabled={

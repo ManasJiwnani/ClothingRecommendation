@@ -199,6 +199,8 @@ export default function SavedScreen() {
   };
 
   const tryOnOutfit = (outfit: Record<string, unknown>) => {
+    const pieces = getPieces(outfit);
+    const title = getOutfitTitle(outfit, pieces);
     const top = isRecord(outfit.top) ? outfit.top : outfit.dress;
     const bottom = isRecord(outfit.bottom)
       ? outfit.bottom
@@ -217,6 +219,14 @@ export default function SavedScreen() {
       params: {
         top: typeof topImage === "string" ? topImage : "",
         bottom: typeof bottomImage === "string" ? bottomImage : "",
+        intent: [
+          title,
+          outfit.occasion,
+          outfit.vibe,
+          ...pieces.map((piece) => piece.name),
+        ]
+          .filter((value): value is string => typeof value === "string")
+          .join(" "),
       },
     });
   };

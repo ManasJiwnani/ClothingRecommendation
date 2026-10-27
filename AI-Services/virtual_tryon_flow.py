@@ -195,6 +195,7 @@ class VirtualTryOnRequest(BaseModel):
     top: str | None = None
     bottom: str | None = None
     shoes: str | None = None
+    layer: str | None = None
 
 
 def resolve_user_gender(user_id: str | None, explicit_gender: str | None) -> str:
@@ -246,11 +247,19 @@ def download_and_trim_image(url: str) -> Image.Image:
 def combine_outfit_for_vto(clothing_urls: dict[str, str | None]) -> bytes:
     """Combine clothing images into a single garment image. Uses cached preprocessed images."""
     canvas = Image.new("RGBA", (768, 1024), (255, 255, 255, 255))
-    positions = {
-        "top": (80, 40, 608, 380),
-        "bottom": (120, 380, 528, 420),
-        "shoes": (200, 780, 368, 200),
-    }
+    if clothing_urls.get("layer"):
+        positions = {
+            "top": (10, 30, 360, 360),
+            "layer": (398, 30, 360, 360),
+            "bottom": (90, 410, 588, 360),
+            "shoes": (285, 790, 198, 200),
+        }
+    else:
+        positions = {
+            "top": (80, 40, 608, 380),
+            "bottom": (120, 380, 528, 420),
+            "shoes": (200, 780, 368, 200),
+        }
     loaded_items = 0
 
     for category, url in clothing_urls.items():
@@ -396,6 +405,7 @@ def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str | float
         "top": request.top,
         "bottom": request.bottom,
         "shoes": request.shoes,
+        "layer": request.layer,
     }
     if not any(clothing_urls.values()):
         raise HTTPException(
@@ -435,14 +445,17 @@ def create_virtual_try_on(request: VirtualTryOnRequest) -> dict[str, str | float
 Create a realistic virtual try-on for a {target_gender} model.
 
 The first image is the person.
-The second image is the garment.
+The second image is a garment reference board.
 
-Put the garment from the second image onto the person in the first image.
+Put the garments from the second image onto the person in the first image.
+When the board contains a top and an outerwear layer, use the upper-left
+garment as the top and the upper-right garment as outerwear worn over that top.
+Use the lower garment for the bottom and the lowest garment for shoes.
 
 Preserve the person's identity, face, hairstyle, body proportions, pose,
 skin tone and appearance.
 
-Preserve the garment's color, pattern, texture and design.
+Preserve each garment's color, pattern, texture and design.
 
 Make the garment fit naturally on the person's body.
 

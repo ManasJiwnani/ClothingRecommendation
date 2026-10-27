@@ -14,6 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SymbolView } from 'expo-symbols';
 import { aiApiFetch } from '../lib/api';
+import {
+  getTryOnFallbackImage,
+  TRY_ON_FALLBACK_DELAY_MS,
+} from '../services/try-on-fallback';
 
 const WOMAN_IMAGE = require('../assets/woman.png');
 
@@ -22,10 +26,12 @@ export default function TryOnScreen() {
   const params = useLocalSearchParams<{
     top?: string;
     bottom?: string;
+    intent?: string;
   }>();
 
   const [isTryingOn, setIsTryingOn] = useState(false);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
+  const [showTryOnFallback, setShowTryOnFallback] = useState(false);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
   const [activePiece, setActivePiece] = useState<'top' | 'bottom' | null>(null);
 
@@ -38,17 +44,24 @@ export default function TryOnScreen() {
     typeof params.bottom === 'string' && params.bottom.length > 0
       ? params.bottom
       : null;
+  const intent = typeof params.intent === 'string' ? params.intent : '';
+  const fallbackImage = getTryOnFallbackImage(intent);
 
   const createTryOn = async () => {
     if (!topImage && !bottomImage) {
       return;
     }
 
-    try {
-      setIsTryingOn(true);
-      setTryOnResult(null);
-      setTryOnError(null);
+    setIsTryingOn(true);
+    setTryOnResult(null);
+    setShowTryOnFallback(false);
+    setTryOnError(null);
+    const fallbackTimer = setTimeout(
+      () => setShowTryOnFallback(true),
+      TRY_ON_FALLBACK_DELAY_MS
+    );
 
+    try {
       const response = await aiApiFetch<{ image_url: string }>(
         '/virtual-try-on',
         {
@@ -66,14 +79,17 @@ export default function TryOnScreen() {
       }
 
       setTryOnResult(response.image_url);
+      setShowTryOnFallback(false);
     } catch (error) {
       console.error('Failed to create virtual try-on:', error);
+      setShowTryOnFallback(true);
       setTryOnError(
         error instanceof Error
           ? error.message
           : 'Could not create the virtual try-on. Please try again.'
       );
     } finally {
+      clearTimeout(fallbackTimer);
       setIsTryingOn(false);
     }
   };
@@ -220,17 +236,27 @@ export default function TryOnScreen() {
                   tintColor="#745a38"
                 />
                 <Text style={styles.modelBadgeText}>
-                  {tryOnResult ? 'YOUR LOOK' : 'MODEL PREVIEW'}
+                  {tryOnResult
+                    ? 'YOUR LOOK'
+                    : showTryOnFallback && fallbackImage
+                      ? 'STYLE PREVIEW'
+                      : 'MODEL PREVIEW'}
                 </Text>
               </View>
 
               <Image
-                source={tryOnResult ? { uri: tryOnResult } : WOMAN_IMAGE}
+                source={
+                  tryOnResult
+                    ? { uri: tryOnResult }
+                    : showTryOnFallback && fallbackImage
+                      ? fallbackImage
+                      : WOMAN_IMAGE
+                }
                 style={styles.modelImage}
                 resizeMode="contain"
               />
 
-              {isTryingOn && (
+              {isTryingOn && !showTryOnFallback && (
                 <View style={styles.loadingOverlay}>
                   <ActivityIndicator size="large" color="#ffffff" />
                   <Text style={styles.loadingTitle}>Creating your look</Text>
@@ -239,7 +265,6 @@ export default function TryOnScreen() {
                   </Text>
                 </View>
               )}
-
               {tryOnResult && !isTryingOn && (
                 <View style={styles.resultBadge}>
                   <SymbolView
@@ -256,6 +281,30 @@ export default function TryOnScreen() {
               )}
             </View>
           </View>
+
+          {(showTryOnFallback || tryOnError) && !tryOnResult && (
+            <View style={styles.fallbackNotice}>
+              <SymbolView
+                name={{
+                  ios: 'info.circle.fill',
+                  android: 'info',
+                  web: 'info',
+                }}
+                size={17}
+                tintColor="#745a38"
+              />
+              <Text style={styles.fallbackNoticeText} selectable>
+                {fallbackImage
+                  ? 'Style reference only — this is not your generated try-on, so it may not match the garments on the left.'
+                  : 'The preview does not show your selected garments.'}
+                {isTryingOn
+                  ? ' Your try-on is still processing.'
+                  : tryOnError
+                    ? ' The try-on could not be created.'
+                    : ''}
+              </Text>
+            </View>
+          )}
 
           <Text style={styles.interactionHint}>
             Tap a clothing piece to focus it in your outfit.
@@ -606,6 +655,25 @@ const styles = StyleSheet.create({
     color: '#d7d4cf',
     fontSize: 12,
     marginTop: 6,
+  },
+
+  fallbackNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    padding: 12,
+    marginBottom: 14,
+    borderRadius: 12,
+    backgroundColor: '#f3ede3',
+    borderWidth: 1,
+    borderColor: '#e4d8c6',
+  },
+
+  fallbackNoticeText: {
+    flex: 1,
+    color: '#625b52',
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   resultBadge: {

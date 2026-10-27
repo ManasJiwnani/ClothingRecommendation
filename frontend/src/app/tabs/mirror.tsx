@@ -727,22 +727,18 @@ useEffect(() => {
         throw new Error('Sign in to get outfit alternatives.');
       }
 
-      const rawOutfit = targetOutfit.raw.outfit;
-      if (!isRecord(rawOutfit)) {
-        throw new Error('The selected outfit is missing its wardrobe data.');
-      }
-      const currentItem = rawOutfit[category];
-      if (!isRecord(currentItem)) {
+      const currentItem =
+        category === 'top' ? targetOutfit.top : targetOutfit.bottom;
+      const compatibleItem =
+        category === 'top' ? targetOutfit.bottom : targetOutfit.top;
+      if (!currentItem) {
         throw new Error(`There is no ${category} to replace in this outfit.`);
       }
-      const lockedItems = ['top', 'bottom', 'footwear', 'dress']
-        .filter((key) => key !== category)
-        .map((key) => rawOutfit[key])
-        .filter(isRecord);
+      const lockedItems = compatibleItem ? [compatibleItem.raw] : [];
       const response = await swapOutfitItem(
         user.id,
         category,
-        currentItem.id === undefined ? undefined : String(currentItem.id),
+        currentItem.id,
         lockedItems
       );
       const alternatives = response.alternatives

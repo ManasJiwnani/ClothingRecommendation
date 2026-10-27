@@ -1,50 +1,39 @@
-from services.color_matcher import colors_compatible
+from services.color_matcher import score_color_pair
+from services.outfit_scorer import STYLE_COMPATIBILITY
 
-# try:
-#     import truststore
 
-#     truststore.inject_into_ssl()
-
-# except Exception:
-#     pass
+def _normalize_style(style):
+    return str(style or "").casefold().replace("-", "_").replace(" ", "_").strip()
 
 def score_swap_candidate(candidate, locked_items):
     """
-    Score how well a replacement item works
-    with the items the user decided to keep.
+    Score a replacement against the garment(s) that remain in the outfit.
     """
-
     score = 0
-
-    candidate_color = candidate.get("color", "").lower()
+    candidate_color = candidate.get("color")
+    candidate_style = _normalize_style(candidate.get("style"))
+    candidate_formality = candidate.get("formality")
 
     for item in locked_items:
+        locked_color = item.get("color")
+        if candidate_color and locked_color:
+            score += score_color_pair(candidate_color, locked_color)
 
-        locked_color = item.get("color", "").lower()
+        locked_style = _normalize_style(item.get("style"))
+        if candidate_style and locked_style:
+            if candidate_style == locked_style:
+                score += 5
+            elif (
+                locked_style in STYLE_COMPATIBILITY.get(candidate_style, set())
+                or candidate_style in STYLE_COMPATIBILITY.get(locked_style, set())
+            ):
+                score += 3
+            else:
+                score -= 3
 
-        # Color compatibility
-        if colors_compatible(candidate_color, locked_color):
-            score += 3
-
-        # Style compatibility
-        if (
-            candidate.get("style")
-            and item.get("style")
-            and candidate["style"].lower()
-            == item["style"].lower()
-        ):
-            score += 2
-
-        # Formality compatibility
-        candidate_formality = candidate.get("formality")
         item_formality = item.get("formality")
-
-        if (
-            candidate_formality is not None
-            and item_formality is not None
-            and abs(candidate_formality - item_formality) <= 1
-        ):
-            score += 2
+        if candidate_formality is not None and item_formality is not None:
+            score += 2 if abs(candidate_formality - item_formality) <= 1 else -2
 
     return score
 

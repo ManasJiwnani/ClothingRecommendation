@@ -923,6 +923,14 @@ useEffect(() => {
 
     const liked =
       isOutfitLiked(item);
+    const mainGarmentImageCount = [
+      item.top.image,
+      item.bottom?.image,
+    ].filter(Boolean).length;
+    const hasSingleMainGarmentImage = mainGarmentImageCount === 1;
+    const singleGarmentStyle = hasSingleMainGarmentImage
+      ? styles.cardSingleGarment
+      : undefined;
 
     return (
 
@@ -951,16 +959,14 @@ useEffect(() => {
 
             <Image
               source={item.top.image || undefined}
-              style={
-                styles.cardTop
-              }
+              style={[styles.cardTop, item.top.image && singleGarmentStyle]}
               resizeMode="contain"
             />
 
             {item.bottom?.image && (
               <Image
                 source={item.bottom.image}
-                style={styles.cardBottom}
+                style={[styles.cardBottom, singleGarmentStyle]}
                 resizeMode="contain"
               />
             )}
@@ -1953,16 +1959,20 @@ useEffect(() => {
 
                         <Image
                           source={outfit.top.image || undefined}
-                          style={
-                            styles.likedTop
-                          }
+                          style={[
+                            styles.likedTop,
+                            !outfit.bottom?.image && styles.likedSingleGarment,
+                          ]}
                           resizeMode="contain"
                         />
 
                         {outfit.bottom?.image && (
                           <Image
                             source={outfit.bottom.image}
-                            style={styles.likedBottom}
+                            style={[
+                              styles.likedBottom,
+                              !outfit.top.image && styles.likedSingleGarment,
+                            ]}
                             resizeMode="contain"
                           />
                         )}
@@ -2236,6 +2246,16 @@ const styles = StyleSheet.create({
     right: '6%',
   },
 
+  cardSingleGarment: {
+    width: '86%',
+    height: '94%',
+    top: '3%',
+    bottom: undefined,
+    left: '7%',
+    right: undefined,
+    zIndex: 4,
+  },
+
   // =======================================================
   // CARD LIKE
   // =======================================================
@@ -2474,6 +2494,16 @@ const styles = StyleSheet.create({
     width: '58%',
     height: '55%',
     bottom: '1%',
+  },
+
+  likedSingleGarment: {
+    width: '86%',
+    height: '94%',
+    top: '3%',
+    bottom: undefined,
+    left: '7%',
+    right: undefined,
+    zIndex: 4,
   },
 
   likedCardInfo: {

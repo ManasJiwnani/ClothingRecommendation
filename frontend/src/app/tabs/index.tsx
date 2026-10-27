@@ -17,8 +17,10 @@ import { supabase } from "../../lib/supabase";
 import { useUserName } from "@/hooks/use-user-name";
 import { AppSupportModal } from "../../components/AppSupportModal";
 import { Image as ExpoImage } from "expo-image";
-import { SymbolView } from "expo-symbols";
+import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { useFocusEffect, useRouter } from "expo-router";
+import maleProfile from "../../assets/maleprofile.png";
+import femaleProfile from "../../assets/femaleprofile.png";
 
 import {
   ActivityIndicator,
@@ -262,6 +264,7 @@ function getWeatherLocationErrorMessage(error: unknown) {
 export default function StylistScreen() {
   const userName = useUserName();
   const firstName = userName.trim().split(/\s+/)[0] ?? "";
+  const [profileGender, setProfileGender] = useState<string | null>(null);
 
   const [occasion, setOccasion] = useState("Work");
   const [showSupportModal, setShowSupportModal] = useState(false);
@@ -289,6 +292,49 @@ export default function StylistScreen() {
   const [isWorn, setIsWorn] = useState(false);
 
   const router = useRouter();
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadProfileGender = async () => {
+        try {
+          const {
+            data: { user },
+            error: authError,
+          } = await supabase.auth.getUser();
+          if (authError) throw authError;
+          if (!user) {
+            if (isActive) setProfileGender(null);
+            return;
+          }
+
+          const { data, error } = await supabase
+            .from("user_preferences")
+            .select("gender")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (error) throw error;
+
+          if (isActive) {
+            setProfileGender(
+              typeof data?.gender === "string"
+                ? data.gender.toLowerCase().trim()
+                : null
+            );
+          }
+        } catch (error) {
+          console.error("Failed to load profile gender for Home avatar:", error);
+          if (isActive) setProfileGender(null);
+        }
+      };
+
+      void loadProfileGender();
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   // ==========================================================
   // WEATHER STATE
@@ -749,14 +795,18 @@ export default function StylistScreen() {
   // WEATHER ICON
   // ==========================================================
 
-  const getWeatherIcon = () => {
+  const getWeatherIcon = (): SymbolViewProps["name"] => {
 
     if (
       rainCategory === "rainy" ||
       rainCategory === "wet"
     ) {
 
-      return "cloud.rain.fill";
+      return {
+        ios: "cloud.rain.fill",
+        android: "rainy",
+        web: "rainy",
+      };
     }
 
 
@@ -765,11 +815,19 @@ export default function StylistScreen() {
       temperatureCategory === "warm"
     ) {
 
-      return "sun.max.fill";
+      return {
+        ios: "sun.max.fill",
+        android: "wb_sunny",
+        web: "wb_sunny",
+      };
     }
 
 
-    return "cloud.sun.fill";
+    return {
+      ios: "cloud.sun.fill",
+      android: "partly_cloudy_day",
+      web: "partly_cloudy_day",
+    };
   };
 
 
@@ -927,15 +985,23 @@ export default function StylistScreen() {
                   onPress={() => router.push("/tabs/profile")}
                   style={styles.profileButton}
                 >
-                  <SymbolView
-                    name={{
-                      ios: "person.crop.circle.fill",
-                      android: "account_circle",
-                      web: "account_circle",
-                    }}
-                    size={26}
-                    tintColor="#745a38"
-                  />
+                  {profileGender === "male" || profileGender === "female" ? (
+                    <ExpoImage
+                      source={profileGender === "male" ? maleProfile : femaleProfile}
+                      style={styles.profileAvatar}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <SymbolView
+                      name={{
+                        ios: "person.crop.circle.fill",
+                        android: "account_circle",
+                        web: "account_circle",
+                      }}
+                      size={26}
+                      tintColor="#745a38"
+                    />
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -1430,7 +1496,11 @@ export default function StylistScreen() {
             >
               <View style={styles.quickIcon}>
                 <SymbolView
-                  name="bookmark.fill"
+                  name={{
+                    ios: "bookmark.fill",
+                    android: "bookmark",
+                    web: "bookmark",
+                  }}
                   size={19}
                   tintColor="#745a38"
                 />
@@ -1584,6 +1654,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 20,
     backgroundColor: "#f0eeea",
+    overflow: "hidden",
+  },
+
+  profileAvatar: {
+    width: "100%",
+    height: "100%",
   },
 
   heroDescription: {

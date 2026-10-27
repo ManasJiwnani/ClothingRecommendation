@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useState , useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Alert,
   Pressable,
@@ -17,6 +18,8 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 /* cspell:ignore supabase */
 import { supabase } from '@/lib/supabase';
+import maleProfile from '../../assets/maleprofile.png';
+import femaleProfile from '../../assets/femaleprofile.png';
 
 const moods = [
   'Minimalist',
@@ -120,6 +123,7 @@ export default function ProfileScreen() {
   ]);
 
   const [profileName, setProfileName] = useState('');
+  const [profileGender, setProfileGender] = useState<string | null>(null);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -148,9 +152,25 @@ export default function ProfileScreen() {
         setProfileName(data.name);
         setNameDraft(data.name);
       }
+
+      const { data: preferences, error: preferencesError } = await supabase
+        .from("user_preferences")
+        .select("gender")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (preferencesError) {
+        console.error("PROFILE GENDER LOAD ERROR:", preferencesError);
+        return;
+      }
+      setProfileGender(
+        typeof preferences?.gender === "string"
+          ? preferences.gender.toLowerCase().trim()
+          : null
+      );
     };
 
-    loadProfile();
+    void loadProfile();
   }, []);
 
   const [isEditingMoods, setIsEditingMoods] =
@@ -382,16 +402,26 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
 
             <View style={styles.avatar}>
-              <ThemedText style={styles.avatarText}>
-                {profileName
-                  ? profileName
-                      .split(" ")
-                      .map((word) => word[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()
-                  : "YN"}
-              </ThemedText>
+              {profileGender === "male" || profileGender === "female" ? (
+                <Image
+                  source={
+                    profileGender === "male" ? maleProfile : femaleProfile
+                  }
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <ThemedText style={styles.avatarText}>
+                  {profileName
+                    ? profileName
+                        .split(" ")
+                        .map((word) => word[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()
+                    : "YN"}
+                </ThemedText>
+              )}
             </View>
 
             {isEditingName ? (
@@ -1205,6 +1235,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 5,
     borderColor: '#ccc7be',
+    overflow: 'hidden',
+  },
+
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
 
   avatarText: {

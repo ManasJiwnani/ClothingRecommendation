@@ -1253,6 +1253,18 @@ export default function StylistScreen() {
                         bottom:
                           getItemImageUrl(selectedDailyOutfit?.bottom) ||
                           getItemImageUrl(selectedDailyOutfit?.footwear),
+                        intent: [
+                          dailyRecommendation?.preset,
+                          dailyRecommendation?.intent.occasion,
+                          dailyRecommendation?.intent.style,
+                          dailyRecommendation?.intent.mood,
+                          dailyRecommendation?.intent.cultural_aesthetic,
+                        ]
+                          .filter(
+                            (value): value is string =>
+                              typeof value === "string"
+                          )
+                          .join(" "),
                       },
                     });
                   }}

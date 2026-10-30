@@ -167,7 +167,7 @@ def create_default_intent(
         return Intent(
             occasion="weekend",
             style="casual",
-            formality=2,
+            formality=1,
             mood="relaxed",
             weather_sensitive=True
         )

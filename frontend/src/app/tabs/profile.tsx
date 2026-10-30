@@ -495,7 +495,7 @@ export default function ProfileScreen() {
             <ThemedText
               style={styles.profileDetail}
             >
-              Member since Oct 2023
+              Member since Oct 2026
             </ThemedText>
 
           </View>

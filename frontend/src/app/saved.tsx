@@ -267,7 +267,7 @@ export default function SavedScreen() {
             </Pressable>
             <View style={styles.headerText}>
               <Text style={styles.kicker}>CLOSET AI</Text>
-              <Text style={styles.title}>Saved Outfits</Text>
+              <Text style={styles.title}>Saved Items</Text>
               <Text style={styles.subtitle}>
                 Your favorite looks, ready when you are.
               </Text>

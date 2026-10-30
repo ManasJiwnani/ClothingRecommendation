@@ -1519,7 +1519,7 @@ export default function StylistScreen() {
               </View>
 
               <View style={styles.quickText}>
-                <Text style={styles.quickTitle}>Saved Outfits</Text>
+                <Text style={styles.quickTitle}>Saved Items</Text>
                 <Text style={styles.quickDescription}>
                   See your saved recommendations
                 </Text>

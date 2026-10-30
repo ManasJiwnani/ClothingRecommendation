@@ -53,7 +53,6 @@ const categories = [
   "Bottoms",
   "Dresses",
   "Outerwear",
-  "Shoes",
 ];
 
 export default function ClosetScreen() {
@@ -739,16 +738,6 @@ export default function ClosetScreen() {
               );
             break;
 
-          case "Shoes":
-            categoryMatches =
-              normalizedCategory.includes(
-                "shoe"
-              ) ||
-              normalizedCategory.includes(
-                "footwear"
-              );
-            break;
-
           default:
             categoryMatches = true;
         }
@@ -928,16 +917,16 @@ export default function ClosetScreen() {
                   style={[
                     styles.modeCard,
                     uploadMode ===
-                      "single" &&
-                      styles.modeCardSelected,
+                    "single" &&
+                    styles.modeCardSelected,
                   ]}
                 >
                   <View
                     style={[
                       styles.modeIcon,
                       uploadMode ===
-                        "single" &&
-                        styles.modeIconSelected,
+                      "single" &&
+                      styles.modeIconSelected,
                     ]}
                   >
                     <SymbolView
@@ -945,7 +934,7 @@ export default function ClosetScreen() {
                       size={24}
                       tintColor={
                         uploadMode ===
-                        "single"
+                          "single"
                           ? "#ffffff"
                           : "#745a38"
                       }
@@ -956,8 +945,8 @@ export default function ClosetScreen() {
                     style={[
                       styles.modeTitle,
                       uploadMode ===
-                        "single" &&
-                        styles.modeTitleSelected,
+                      "single" &&
+                      styles.modeTitleSelected,
                     ]}
                   >
                     Single Item
@@ -967,8 +956,8 @@ export default function ClosetScreen() {
                     style={[
                       styles.modeDescription,
                       uploadMode ===
-                        "single" &&
-                        styles.modeDescriptionSelected,
+                      "single" &&
+                      styles.modeDescriptionSelected,
                     ]}
                   >
                     One clothing or accessory
@@ -986,16 +975,16 @@ export default function ClosetScreen() {
                   style={[
                     styles.modeCard,
                     uploadMode ===
-                      "outfit" &&
-                      styles.modeCardSelected,
+                    "outfit" &&
+                    styles.modeCardSelected,
                   ]}
                 >
                   <View
                     style={[
                       styles.modeIcon,
                       uploadMode ===
-                        "outfit" &&
-                        styles.modeIconSelected,
+                      "outfit" &&
+                      styles.modeIconSelected,
                     ]}
                   >
                     <SymbolView
@@ -1003,7 +992,7 @@ export default function ClosetScreen() {
                       size={24}
                       tintColor={
                         uploadMode ===
-                        "outfit"
+                          "outfit"
                           ? "#ffffff"
                           : "#745a38"
                       }
@@ -1014,8 +1003,8 @@ export default function ClosetScreen() {
                     style={[
                       styles.modeTitle,
                       uploadMode ===
-                        "outfit" &&
-                        styles.modeTitleSelected,
+                      "outfit" &&
+                      styles.modeTitleSelected,
                     ]}
                   >
                     Whole Outfit
@@ -1025,8 +1014,8 @@ export default function ClosetScreen() {
                     style={[
                       styles.modeDescription,
                       uploadMode ===
-                        "outfit" &&
-                        styles.modeDescriptionSelected,
+                      "outfit" &&
+                      styles.modeDescriptionSelected,
                     ]}
                   >
                     Your complete look
@@ -1048,7 +1037,7 @@ export default function ClosetScreen() {
                 style={styles.infoText}
               >
                 {uploadMode ===
-                "single"
+                  "single"
                   ? "Upload a clear photo of one clothing item or accessory."
                   : "Upload a photo of yourself wearing your complete outfit. AI can later identify each item separately."}
               </Text>
@@ -1157,7 +1146,7 @@ export default function ClosetScreen() {
                   <SymbolView
                     name={
                       uploadMode ===
-                      "single"
+                        "single"
                         ? "tshirt"
                         : "person.crop.rectangle"
                     }
@@ -1171,7 +1160,7 @@ export default function ClosetScreen() {
                     }
                   >
                     {uploadMode ===
-                    "single"
+                      "single"
                       ? "Your item preview will appear here"
                       : "Your outfit preview will appear here"}
                   </Text>
@@ -1320,7 +1309,7 @@ export default function ClosetScreen() {
                     }
                   >
                     {uploadMode ===
-                    "single"
+                      "single"
                       ? "For a single item"
                       : "For a whole outfit"}
                   </Text>
@@ -1331,7 +1320,7 @@ export default function ClosetScreen() {
                     }
                   >
                     {uploadMode ===
-                    "single"
+                      "single"
                       ? "Place the item clearly in the frame and use good lighting. Avoid heavily cluttered backgrounds."
                       : "Take a clear full-body photo where your outfit is visible. Good lighting makes item detection easier."}
                   </Text>
@@ -1360,7 +1349,7 @@ export default function ClosetScreen() {
                     style={styles.metric}
                   >
                     {uploadMode ===
-                    "single"
+                      "single"
                       ? "SINGLE ITEM"
                       : "WHOLE OUTFIT"}
                   </Text>
@@ -1380,7 +1369,7 @@ export default function ClosetScreen() {
                   }
                 >
                   {uploadMode ===
-                  "single"
+                    "single"
                   }
                 </Text>
               </View>
@@ -1584,14 +1573,14 @@ export default function ClosetScreen() {
               style={[
                 styles.segment,
                 !showOutfits &&
-                  styles.segmentSelected,
+                styles.segmentSelected,
               ]}
             >
               <Text
                 style={[
                   styles.segmentText,
                   !showOutfits &&
-                    styles.segmentTextSelected,
+                  styles.segmentTextSelected,
                 ]}
               >
                 Clothes
@@ -1617,14 +1606,14 @@ export default function ClosetScreen() {
               style={[
                 styles.segment,
                 showOutfits &&
-                  styles.segmentSelected,
+                styles.segmentSelected,
               ]}
             >
               <Text
                 style={[
                   styles.segmentText,
                   showOutfits &&
-                    styles.segmentTextSelected,
+                  styles.segmentTextSelected,
                 ]}
               >
                 Outfits
@@ -1663,16 +1652,16 @@ export default function ClosetScreen() {
                     style={[
                       styles.chip,
                       selectedCategory ===
-                        category &&
-                        styles.chipSelected,
+                      category &&
+                      styles.chipSelected,
                     ]}
                   >
                     <Text
                       style={[
                         styles.chipText,
                         selectedCategory ===
-                          category &&
-                          styles.chipTextSelected,
+                        category &&
+                        styles.chipTextSelected,
                       ]}
                     >
                       {category}
@@ -2052,9 +2041,9 @@ const styles = StyleSheet.create({
   addItemContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing.three,
-    paddingTop:Spacing.three,
-    paddingBottom:BottomTabInset + 100,
-      gap:Spacing.two,
+    paddingTop: Spacing.three,
+    paddingBottom: BottomTabInset + 100,
+    gap: Spacing.two,
   },
 
   header: {
@@ -2119,12 +2108,12 @@ const styles = StyleSheet.create({
   },
 
   backText: {
-    fontFamily:Fonts.serif,
-    lineHeight:40,
+    fontFamily: Fonts.serif,
+    lineHeight: 40,
     fontSize: 32,
     fontWeight: "500",
     color: "#1b1c1a",
-    marginTop:4,
+    marginTop: 4,
   },
 
   uploadSection: {

@@ -151,7 +151,7 @@ const maleStyleBuyLinks: Record<string, string> = {
   oldmoney: 'https://www.myntra.com/men-blazers',
   streetstyle: 'https://www.myntra.com/men-streetwear',
   elevated_utility: 'https://www.myntra.com/men-jackets',
-  parisian_scandi: 'https://www.myntra.com/men-shirts',
+  parisian_scandi: 'https://linktr.ee/mandlikgauri738',
   minimalist_scandi: 'https://www.myntra.com/men-tshirts',
   casual: 'https://www.myntra.com/men-casual-wear',
 };

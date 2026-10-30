@@ -93,10 +93,10 @@ cd AI-Services
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python main2.py
+python main.py
 ```
 
-The `main2.py` application starts on port `8001`. `langgraph` is required by the app-support workflow; if it is added to the project's dependency manifest in your branch, the separate install step can be omitted.
+The `main.py` application starts on port `8001`.
 
 API docs: [http://localhost:8001/docs](http://localhost:8001/docs)
 
